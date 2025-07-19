@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Edit, Trash2, RotateCcw, Play, Settings } from "lucide-react"
+import { Plus, Edit, Trash2, RotateCcw, Play, Settings, FileEdit, Type } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -129,8 +129,8 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border p-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="border-b border-border">
+        <div className="px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">My Presentations</h1>
             <p className="text-muted-foreground">Manage your presentation projects</p>
@@ -157,8 +157,7 @@ export function Dashboard() {
       </header>
 
       {/* Content */}
-      <main className="p-6">
-        <div className="max-w-6xl mx-auto">
+      <main className="px-4 py-4">
         {projects.length === 0 ? (
           <div className="text-center py-20">
             <h2 className="text-xl font-semibold mb-2">No projects yet</h2>
@@ -207,7 +206,7 @@ export function Dashboard() {
                           onClick={() => navigate(`/presentation/${project.id}`)}
                           title="Edit presentation"
                         >
-                          <Edit className="w-4 h-4" />
+                          <FileEdit className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -215,7 +214,7 @@ export function Dashboard() {
                           onClick={() => handleEditProject(project)}
                           title="Edit title"
                         >
-                          <Settings className="w-4 h-4" />
+                          <Type className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -233,7 +232,6 @@ export function Dashboard() {
             </table>
           </div>
         )}
-        </div>
       </main>
 
       {/* Create Project Dialog */}

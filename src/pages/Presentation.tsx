@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { useEffect, useState, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, RotateCcw, CheckSquare, Square } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, RotateCcw, CheckSquare, Square, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
@@ -361,8 +361,8 @@ export function Presentation() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-        <header className="border-b border-border/50 p-4 bg-background/80 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto flex items-center gap-4">
+        <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
+          <div className="px-4 py-4 flex items-center gap-4">
             <Button 
               variant="ghost" 
               size="icon"
@@ -374,7 +374,7 @@ export function Presentation() {
           </div>
         </header>
         
-        <main className="max-w-7xl mx-auto p-6">
+        <main className="px-4 py-4">
           <div className="text-center py-20">
             <h2 className="text-4xl font-bold mb-4">Project Not Found</h2>
             <p className="text-xl text-muted-foreground mb-8">
@@ -394,7 +394,19 @@ export function Presentation() {
   // Play Mode Layout
   if (isPlayMode) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col">
+      <div className="min-h-screen bg-black text-white flex flex-col relative">
+        {/* Exit Button */}
+        <div className="absolute top-4 left-4 z-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsPlayMode(false)}
+            className="text-white hover:bg-white/20 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </Button>
+        </div>
+
         {/* Presentation Content */}
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="max-w-5xl w-full space-y-12">
@@ -489,8 +501,8 @@ export function Presentation() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header */}
-      <header className="border-b border-border/50 p-4 bg-background/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
+        <div className="px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button 
               variant="ghost" 
@@ -520,11 +532,11 @@ export function Presentation() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-73px)]">
+      <div className="flex h-[calc(100vh-81px)]">
         {/* Left Sidebar - Pages List */}
-        <div className="w-64 border-r border-border/50 bg-background/50 backdrop-blur-sm p-3 overflow-y-auto">
+        <div className="w-64 border-r border-border/50 bg-background/50 backdrop-blur-sm px-4 py-4 overflow-y-auto">
           <div className="space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="font-semibold text-lg">Pages</h2>
                 <div className="flex gap-1">
@@ -609,7 +621,7 @@ export function Presentation() {
               )}
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-3">
               {pages.map((page, index) => {
                 const isSelected = selectedPageIds.has(page.id!)
                 return (
@@ -688,15 +700,15 @@ export function Presentation() {
         {/* Right Side - Live Preview */}
         <div className="flex-1 flex">
           {/* Editor Panel */}
-          <div className="w-80 p-4 overflow-y-auto border-r border-border/50 bg-background/30">
+          <div className="w-80 px-4 py-4 overflow-y-auto border-r border-border/50 bg-background/30">
             <div className="space-y-4">
-              <div className="text-center pb-2 border-b">
+              <div className="text-center pb-3 border-b">
                 <h2 className="text-base font-semibold mb-1">Edit Content</h2>
                 <p className="text-xs text-muted-foreground">Page {currentPage?.pageNumber}</p>
               </div>
 
               {/* Title Editor */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
                   <Type className="w-3 h-3" />
                   TITLE
@@ -725,7 +737,7 @@ export function Presentation() {
               </div>
 
               {/* Description Editor */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
                   <FileText className="w-3 h-3" />
                   DESCRIPTION
@@ -755,7 +767,7 @@ export function Presentation() {
               </div>
 
               {/* Code Editor */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
                   <Code2 className="w-3 h-3" />
                   CODE
@@ -800,7 +812,7 @@ export function Presentation() {
           </div>
 
           {/* Live Preview */}
-          <div className="flex-1 bg-black text-white flex items-center justify-center p-8">
+          <div className="flex-1 bg-black text-white flex items-center justify-center px-4 py-4">
             <div className="max-w-4xl w-full space-y-8">
               {currentPage?.title && (
                 <h1 className="text-4xl md:text-5xl font-bold text-center leading-tight">
