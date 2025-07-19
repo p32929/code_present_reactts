@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Edit, Trash2, RotateCcw } from "lucide-react"
+import { Plus, Edit, Trash2, RotateCcw, Play, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { DatabaseService, type Project } from "@/lib/database"
@@ -11,7 +10,7 @@ import { DatabaseService, type Project } from "@/lib/database"
 export function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
   const [newProjectName, setNewProjectName] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   
   // Edit project states
@@ -50,16 +49,12 @@ export function Dashboard() {
       try {
         const projectId = await DatabaseService.createProject(newProjectName.trim())
         setNewProjectName("")
-        setIsDialogOpen(false)
+        setIsCreateDialogOpen(false)
         navigate(`/presentation/${projectId}`)
       } catch (error) {
         console.error('Failed to create project:', error)
       }
     }
-  }
-
-  const handleProjectClick = (projectId: number) => {
-    navigate(`/presentation/${projectId}`)
   }
 
   const handleEditProject = (project: Project) => {
@@ -122,181 +117,157 @@ export function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="relative">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary/20 border-t-primary mx-auto mb-6"></div>
-            <div className="absolute inset-0 rounded-full h-12 w-12 border-4 border-transparent border-t-primary/60 animate-ping mx-auto"></div>
-          </div>
-          <p className="text-muted-foreground text-lg">Loading your projects...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading projects...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="max-w-7xl mx-auto p-6 lg:p-8">
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-12">
-          <div className="space-y-2">
-            <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-              My Presentations
-            </h1>
-            <p className="text-muted-foreground text-lg">Create and manage your presentation projects with ease</p>
-            {projects.length > 0 && (
-              <p className="text-sm text-muted-foreground/80">
-                {projects.length} project{projects.length !== 1 ? 's' : ''} total
-              </p>
-            )}
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border p-6">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">My Presentations</h1>
+            <p className="text-muted-foreground">Manage your presentation projects</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
             {projects.length > 0 && (
               <Button
                 variant="outline"
-                size="lg"
                 onClick={handleResetAllData}
-                className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                className="text-destructive hover:text-destructive"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-4 h-4 mr-2" />
                 Reset All
               </Button>
             )}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="lg" className="gap-2 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg">
-                  <Plus className="w-4 h-4" />
-                  New Project
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
-                  <DialogDescription>
-                    Enter a name for your new presentation project.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                  <Input
-                    placeholder="Project name"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleCreateProject()
-                      }
-                    }}
-                  />
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>
-                    Create Project
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Project
+            </Button>
           </div>
         </div>
+      </header>
 
+      {/* Content */}
+      <main className="p-6">
+        <div className="max-w-6xl mx-auto">
         {projects.length === 0 ? (
           <div className="text-center py-20">
-            <div className="relative mx-auto mb-8 w-32 h-32">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-3xl rotate-6"></div>
-              <div className="relative bg-card border border-border rounded-3xl w-full h-full flex items-center justify-center shadow-lg">
-                <Plus className="w-12 h-12 text-muted-foreground" />
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold mb-3">Ready to create something amazing?</h3>
-            <p className="text-muted-foreground text-lg mb-8 max-w-md mx-auto">
-              Start your journey by creating your first presentation project. It only takes a few seconds!
-            </p>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="lg" className="gap-2 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg">
-                  <Plus className="w-5 h-5" />
-                  Create Your First Project
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            <h2 className="text-xl font-semibold mb-2">No projects yet</h2>
+            <p className="text-muted-foreground mb-6">Create your first presentation to get started</p>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Project
+            </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {projects.map((project) => (
-              <Card 
-                key={project.id} 
-                className="group relative overflow-hidden hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1 border-border/50 bg-gradient-to-br from-card to-card/50"
-              >
-                {/* Project ID Badge */}
-                <div className="absolute top-4 right-4 z-10">
-                  <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-1 rounded-full">
-                    #{project.id}
-                  </span>
-                </div>
-                
-                <CardHeader className="pb-4">
-                  <div className="space-y-3">
-                    <div 
-                      className="cursor-pointer" 
-                      onClick={() => handleProjectClick(project.id!)}
-                    >
-                      <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors pr-8">
-                        {project.name}
-                      </CardTitle>
-                      <CardDescription className="text-sm mt-2">
-                        Created {project.createdAt.toLocaleDateString()}
-                      </CardDescription>
-                    </div>
-                    
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEditProject(project)
-                        }}
-                        className="flex-1 gap-2 h-8 hover:bg-primary/10 hover:border-primary/20"
-                      >
-                        <Edit className="w-3 h-3" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteProject(project)
-                        }}
-                        className="flex-1 gap-2 h-8 text-destructive hover:bg-destructive/10 hover:border-destructive/20"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pt-0">
-                  <div 
-                    className="cursor-pointer p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                    onClick={() => handleProjectClick(project.id!)}
-                  >
-                    <p className="text-sm text-muted-foreground text-center">
-                      Click to open presentation
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="bg-card rounded-lg border">
+            <table className="w-full">
+              <thead className="border-b">
+                <tr>
+                  <th className="text-left p-4 font-medium">ID</th>
+                  <th className="text-left p-4 font-medium">Name</th>
+                  <th className="text-left p-4 font-medium">Created</th>
+                  <th className="text-left p-4 font-medium">Updated</th>
+                  <th className="text-right p-4 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project.id} className="border-b hover:bg-muted/50">
+                    <td className="p-4 text-sm text-muted-foreground">#{project.id}</td>
+                    <td className="p-4 font-medium">{project.name}</td>
+                    <td className="p-4 text-sm text-muted-foreground">
+                      {project.createdAt.toLocaleDateString()}
+                    </td>
+                    <td className="p-4 text-sm text-muted-foreground">
+                      {project.updatedAt.toLocaleDateString()}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/presentation/${project.id}?play=true`)}
+                          title="Play presentation"
+                        >
+                          <Play className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/presentation/${project.id}`)}
+                          title="Edit presentation"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditProject(project)}
+                          title="Edit title"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteProject(project)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+        </div>
+      </main>
+
+      {/* Create Project Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Project</DialogTitle>
+            <DialogDescription>
+              Enter a name for your new presentation project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleCreateProject()
+                }
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>
+              Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Project Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -317,6 +288,7 @@ export function Dashboard() {
                   handleSaveEdit()
                 }
               }}
+              autoFocus
             />
           </div>
           <DialogFooter>
