@@ -4,6 +4,7 @@ import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentat
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
 
@@ -124,17 +125,6 @@ export function Dashboard() {
     setIsDeleteDialogOpen(true)
   }
 
-  const getProjectPreview = (project: Project) => {
-    const stats = projectStats[project.id!]
-    if (!stats?.lastSlide) return null
-    
-    const slide = stats.lastSlide
-    if (slide.title) return slide.title
-    if (slide.description) return slide.description
-    if (slide.code) return 'Code snippet'
-    if (slide.image) return 'Image slide'
-    return 'Empty slide'
-  }
 
   const formatTimeAgo = (date: Date) => {
     const now = new Date()
@@ -270,16 +260,17 @@ export function Dashboard() {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Filter className="w-4 h-4" />
                 <span>Sort by:</span>
-                <select 
-                  value={sortBy} 
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-background border border-border rounded px-2 py-1 text-foreground"
-                >
-                  <option value="updated">Recently Updated</option>
-                  <option value="created">Recently Created</option>
-                  <option value="name">Name A-Z</option>
-                  <option value="slides">Most Slides</option>
-                </select>
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as any)}>
+                  <SelectTrigger className="w-[140px] h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="updated">Recently Updated</SelectItem>
+                    <SelectItem value="created">Recently Created</SelectItem>
+                    <SelectItem value="name">Name A-Z</SelectItem>
+                    <SelectItem value="slides">Most Slides</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="text-sm text-muted-foreground">
                 {filteredProjects.length} of {projects.length} presentations
@@ -313,13 +304,12 @@ export function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProjects.map((project) => {
               const stats = projectStats[project.id!] || { slideCount: 0 }
-              const preview = getProjectPreview(project)
               
               return (
                 <div key={project.id} className="group bg-card border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
                   {/* Card Header */}
                   <div className="p-4 pb-3">
-                    <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start justify-between mb-3">
                       <h3 className="font-semibold text-lg leading-tight line-clamp-2 flex-1 pr-2">
                         {project.name}
                       </h3>
@@ -354,17 +344,15 @@ export function Dashboard() {
                       </div>
                     </div>
                     
-                    {/* Preview */}
-                    <div className="text-sm text-muted-foreground mb-3 line-clamp-2 min-h-[2.5rem]">
-                      {preview || 'No content yet'}
+                    {/* Slide count */}
+                    <div className="text-sm text-muted-foreground mb-3">
+                      {stats.slideCount === 0 ? 'No slides yet' : 
+                       stats.slideCount === 1 ? '1 slide' : 
+                       `${stats.slideCount} slides`}
                     </div>
                     
                     {/* Stats */}
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Presentation className="w-3 h-3" />
-                        <span>{stats.slideCount} slides</span>
-                      </div>
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         <span>{formatTimeAgo(project.updatedAt)}</span>

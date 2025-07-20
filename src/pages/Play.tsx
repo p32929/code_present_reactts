@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef } from "react"
-import { X, ChevronLeft, ChevronRight, Settings, Maximize, Minimize, Timer, Play as PlayIcon, Pause, RotateCcw, Home } from "lucide-react"
+import { X, ChevronLeft, ChevronRight, Settings, Maximize, Minimize, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -25,10 +25,6 @@ export function Play() {
   
   // Presentation controls
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [isTimerRunning, setIsTimerRunning] = useState(false)
-  const [startTime, setStartTime] = useState<Date | null>(null)
-  const [elapsedTime, setElapsedTime] = useState(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -56,10 +52,6 @@ export function Play() {
       } else if (e.key === 'f' || e.key === 'F11') {
         e.preventDefault()
         toggleFullscreen()
-      } else if (e.key === 't') {
-        toggleTimer()
-      } else if (e.key === 'r') {
-        resetTimer()
       } else if (e.key === 'Home') {
         setCurrentPageIndex(0)
       } else if (e.key === 'End') {
@@ -70,25 +62,6 @@ export function Play() {
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
   }, [currentPageIndex, pages.length, id, navigate, isFullscreen])
-  
-  // Timer effect
-  useEffect(() => {
-    if (isTimerRunning && startTime) {
-      timerRef.current = setInterval(() => {
-        setElapsedTime(Date.now() - startTime.getTime())
-      }, 1000)
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
-    }
-    
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-      }
-    }
-  }, [isTimerRunning, startTime])
   
   // Fullscreen change listener
   useEffect(() => {
@@ -201,33 +174,6 @@ export function Play() {
     }
   }
   
-  const toggleTimer = () => {
-    if (!isTimerRunning) {
-      setStartTime(new Date())
-      setElapsedTime(0)
-      setIsTimerRunning(true)
-    } else {
-      setIsTimerRunning(false)
-    }
-  }
-  
-  const resetTimer = () => {
-    setIsTimerRunning(false)
-    setStartTime(null)
-    setElapsedTime(0)
-  }
-  
-  const formatTime = (ms: number) => {
-    const totalSeconds = Math.floor(ms / 1000)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }
-  
-  const getProgressPercentage = () => {
-    if (pages.length === 0) return 0
-    return ((currentPageIndex + 1) / pages.length) * 100
-  }
 
   if (isLoading) {
     return (
@@ -260,16 +206,6 @@ export function Play() {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-black text-white flex flex-col relative">
-      {/* Progress Bar */}
-      <div className="absolute top-0 left-0 right-0 z-20">
-        <div className="h-1 bg-white/20">
-          <div 
-            className="h-full bg-primary transition-all duration-300 ease-out"
-            style={{ width: `${getProgressPercentage()}%` }}
-          />
-        </div>
-      </div>
-      
       {/* Top Controls */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
         <Button
@@ -309,36 +245,9 @@ export function Play() {
           {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
         </Button>
       </div>
-      
-      {/* Timer Controls */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2">
-          <div className="text-lg font-mono font-bold">
-            {formatTime(elapsedTime)}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleTimer}
-            className="text-white hover:bg-white/20 transition-colors p-1"
-            title={isTimerRunning ? "Pause Timer (T)" : "Start Timer (T)"}
-          >
-            {isTimerRunning ? <Pause className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={resetTimer}
-            className="text-white hover:bg-white/20 transition-colors p-1"
-            title="Reset Timer (R)"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
 
       {/* Presentation Content */}
-      <div className="flex-1 p-6 pt-8">
+      <div className="flex-1 p-6">
         <div className="max-w-6xl mx-auto">
           {currentPage?.title && (
             <h1 className={`text-4xl md:text-6xl lg:text-7xl font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)}`}>
@@ -384,7 +293,7 @@ export function Play() {
           {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
             <div className="text-center text-white/60 py-20">
               <div className="w-24 h-24 mx-auto mb-6 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
-                <Timer className="w-12 h-12" />
+                <ChevronRight className="w-12 h-12" />
               </div>
               <h2 className="text-4xl font-bold mb-4">Empty Slide</h2>
               <p className="text-xl">No content on this slide</p>
@@ -537,10 +446,6 @@ export function Play() {
               <div className="flex justify-between">
                 <span>Fullscreen:</span>
                 <span>F or F11</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Timer:</span>
-                <span>T (toggle) R (reset)</span>
               </div>
               <div className="flex justify-between">
                 <span>Exit:</span>

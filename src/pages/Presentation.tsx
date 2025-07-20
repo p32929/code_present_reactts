@@ -661,167 +661,180 @@ export function Presentation() {
             </div>
             
             {/* Slides List */}
-            <div className="space-y-1">
+            <div className="space-y-2">
               {pages.map((page, index) => (
                 <div
                   key={page.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
+                  className={`group rounded-lg border transition-all ${
                     index === currentPageIndex
-                      ? 'bg-primary/10 border border-primary/20'
-                      : 'bg-background/50 hover:bg-muted/50'
+                      ? 'bg-primary/10 border-primary/20 shadow-sm'
+                      : 'bg-card border-border hover:bg-muted/30 hover:border-primary/30'
                   } ${selectedPageIds.has(page.id!) ? 'ring-2 ring-primary/30' : ''}`}
                 >
-                  {isMultiSelectMode && (
-                    <button
-                      onClick={() => handlePageSelect(page.id!, !selectedPageIds.has(page.id!))}
-                      className="p-1 hover:bg-muted/50 rounded transition-colors"
-                    >
-                      {selectedPageIds.has(page.id!) ? (
-                        <CheckSquare className="w-4 h-4 text-primary" />
-                      ) : (
-                        <Square className="w-4 h-4" />
-                      )}
-                    </button>
-                  )}
-                  {/* Slide thumbnail preview */}
-                  <div 
-                    onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
-                    className={`w-16 h-12 rounded border-2 flex-shrink-0 overflow-hidden cursor-pointer transition-all ${
-                      index === currentPageIndex
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border bg-muted/30 hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="w-full h-full flex flex-col items-center justify-center text-[10px] p-1 space-y-0.5">
-                      {page.title && (
-                        <div className="font-bold truncate w-full text-center leading-none">
-                          {page.title.slice(0, 8)}...
+                  <div className="p-3">
+                    <div className="flex items-start gap-3">
+                      {isMultiSelectMode && (
+                        <div className="pt-1">
+                          <button
+                            onClick={() => handlePageSelect(page.id!, !selectedPageIds.has(page.id!))}
+                            className="p-1 hover:bg-muted/50 rounded transition-colors"
+                          >
+                            {selectedPageIds.has(page.id!) ? (
+                              <CheckSquare className="w-4 h-4 text-primary" />
+                            ) : (
+                              <Square className="w-4 h-4" />
+                            )}
+                          </button>
                         </div>
                       )}
-                      {page.description && (
-                        <div className="text-muted-foreground truncate w-full text-center leading-none">
-                          {page.description.slice(0, 12)}...
+                      
+                      {/* Slide thumbnail preview */}
+                      <div 
+                        onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
+                        className={`w-16 h-12 rounded border-2 flex-shrink-0 overflow-hidden cursor-pointer transition-all ${
+                          index === currentPageIndex
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border bg-muted/20 hover:border-primary/50'
+                        }`}
+                      >
+                        <div className="w-full h-full flex flex-col items-center justify-center text-[10px] p-1 space-y-0.5">
+                          {page.title && (
+                            <div className="font-bold truncate w-full text-center leading-none">
+                              {page.title.slice(0, 8)}...
+                            </div>
+                          )}
+                          {page.description && (
+                            <div className="text-muted-foreground truncate w-full text-center leading-none">
+                              {page.description.slice(0, 12)}...
+                            </div>
+                          )}
+                          {page.code && (
+                            <div className="text-blue-500 text-[8px] font-mono leading-none">
+                              {`<${page.codeLanguage || 'code'}/>`}
+                            </div>
+                          )}
+                          {page.image && (
+                            <div className="text-green-500 text-[8px] leading-none">
+                              [IMG]
+                            </div>
+                          )}
+                          {!page.title && !page.description && !page.code && !page.image && (
+                            <div className="text-muted-foreground text-[8px] leading-none">
+                              Empty
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {page.code && (
-                        <div className="text-blue-500 text-[8px] font-mono leading-none">
-                          {`<${page.codeLanguage || 'code'}/>`}
-                        </div>
-                      )}
-                      {page.image && (
-                        <div className="text-green-500 text-[8px] leading-none">
-                          [IMG]
-                        </div>
-                      )}
-                      {!page.title && !page.description && !page.code && !page.image && (
-                        <div className="text-muted-foreground text-[8px] leading-none">
-                          Empty
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Slide content info */}
-                  <div 
-                    onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
-                    className={`flex-1 min-w-0 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${
-                        index === currentPageIndex
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {page.pageNumber}
                       </div>
-                      <div className="text-sm font-medium truncate capitalize">
-                        {page.title || `Slide ${page.pageNumber}`}
+                      
+                      {/* Slide content info */}
+                      <div 
+                        onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
+                        className={`flex-1 min-w-0 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                            index === currentPageIndex
+                              ? 'bg-primary text-primary-foreground'
+                              : 'bg-muted text-muted-foreground'
+                          }`}>
+                            {page.pageNumber}
+                          </div>
+                          <div className="text-sm font-medium truncate capitalize">
+                            {page.title || `Slide ${page.pageNumber}`}
+                          </div>
+                        </div>
+                        {(page.description || page.code || page.image) && (
+                          <div className="text-xs text-muted-foreground truncate ml-8">
+                            {page.description ? page.description.slice(0, 35) + '...' : 
+                             page.code ? `Code: ${page.codeLanguage}` :
+                             page.image ? 'Image slide' : ''}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    {(page.description || page.code || page.image) && (
-                      <div className="text-xs text-muted-foreground truncate">
-                        {page.description ? page.description.slice(0, 30) + '...' : 
-                         page.code ? `Code: ${page.codeLanguage}` :
-                         page.image ? 'Image slide' : ''}
+                      
+                      {/* Content type indicators and edit buttons */}
+                      <div className="flex flex-col gap-1 pt-1">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!page.title) {
+                                setContentType('title')
+                              } else {
+                                handleEditContent('title')
+                              }
+                            }}
+                            disabled={!!(page.code && page.image)}
+                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              page.title 
+                                ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                            title={page.code && page.image ? "Cannot add title when both code and image are present" : (page.title ? "Edit Title" : "Add Title")}
+                          >
+                            <Type className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!page.description) {
+                                setContentType('description')
+                              } else {
+                                handleEditContent('description')
+                              }
+                            }}
+                            disabled={!!(page.code && page.image)}
+                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              page.description 
+                                ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                            title={page.code && page.image ? "Cannot add description when both code and image are present" : (page.description ? "Edit Description" : "Add Description")}
+                          >
+                            <FileText className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!page.code) {
+                                setContentType('code')
+                              } else {
+                                handleEditContent('code')
+                              }
+                            }}
+                            disabled={!!page.image}
+                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              page.code 
+                                ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                            title={page.image ? "Cannot add code when image is present" : (page.code ? "Edit Code" : "Add Code")}
+                          >
+                            <Code2 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!page.image) {
+                                setContentType('image')
+                              } else {
+                                handleEditContent('image')
+                              }
+                            }}
+                            disabled={!!page.code}
+                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              page.image 
+                                ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                            title={page.code ? "Cannot add image when code is present" : (page.image ? "Edit Image" : "Add Image")}
+                          >
+                            <Image className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (!page.title) {
-                            setContentType('title')
-                          } else {
-                            handleEditContent('title')
-                          }
-                        }}
-                        className={`p-1 rounded transition-colors ${
-                          page.title 
-                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                        }`}
-                        title={page.title ? "Edit Title" : "Add Title"}
-                      >
-                        <Type className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (!page.description) {
-                            setContentType('description')
-                          } else {
-                            handleEditContent('description')
-                          }
-                        }}
-                        className={`p-1 rounded transition-colors ${
-                          page.description 
-                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                        }`}
-                        title={page.description ? "Edit Description" : "Add Description"}
-                      >
-                        <FileText className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (!page.code) {
-                            setContentType('code')
-                          } else {
-                            handleEditContent('code')
-                          }
-                        }}
-                        className={`p-1 rounded transition-colors ${
-                          page.code 
-                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                        }`}
-                        title={page.code ? "Edit Code" : "Add Code"}
-                      >
-                        <Code2 className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (!page.image) {
-                            setContentType('image')
-                          } else {
-                            handleEditContent('image')
-                          }
-                        }}
-                        className={`p-1 rounded transition-colors ${
-                          page.image 
-                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                        }`}
-                        title={page.image ? "Edit Image" : "Add Image"}
-                      >
-                        <Image className="w-3 h-3" />
-                      </button>
                     </div>
                   </div>
                 </div>
