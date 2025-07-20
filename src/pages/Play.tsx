@@ -22,6 +22,8 @@ export function Play() {
   const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(6)
   const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(6)
   const [codeImageSpacing, setCodeImageSpacing] = useState(6)
+  const [titleFontSize, setTitleFontSize] = useState(5) // 1-10 scale
+  const [descriptionFontSize, setDescriptionFontSize] = useState(5) // 1-10 scale
   
   // Presentation controls
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -147,6 +149,38 @@ export function Play() {
     )
     return spacingMap[closest] || 'mt-8'
   }
+
+  const getTitleFontSizeClass = (sizeValue: number) => {
+    const sizeMap: { [key: number]: string } = {
+      1: 'text-xl md:text-2xl lg:text-3xl',
+      2: 'text-2xl md:text-3xl lg:text-4xl',
+      3: 'text-3xl md:text-4xl lg:text-5xl',
+      4: 'text-4xl md:text-5xl lg:text-6xl',
+      5: 'text-5xl md:text-6xl lg:text-7xl',
+      6: 'text-6xl md:text-7xl lg:text-8xl',
+      7: 'text-7xl md:text-8xl lg:text-9xl',
+      8: 'text-8xl md:text-9xl',
+      9: 'text-9xl',
+      10: 'text-9xl'
+    }
+    return sizeMap[sizeValue] || 'text-4xl md:text-6xl lg:text-7xl'
+  }
+
+  const getDescriptionFontSizeClass = (sizeValue: number) => {
+    const sizeMap: { [key: number]: string } = {
+      1: 'text-sm md:text-base lg:text-lg',
+      2: 'text-base md:text-lg lg:text-xl',
+      3: 'text-lg md:text-xl lg:text-2xl',
+      4: 'text-xl md:text-2xl lg:text-3xl',
+      5: 'text-2xl md:text-3xl lg:text-4xl',
+      6: 'text-3xl md:text-4xl lg:text-5xl',
+      7: 'text-4xl md:text-5xl lg:text-6xl',
+      8: 'text-5xl md:text-6xl lg:text-7xl',
+      9: 'text-6xl md:text-7xl lg:text-8xl',
+      10: 'text-7xl md:text-8xl lg:text-9xl'
+    }
+    return sizeMap[sizeValue] || 'text-xl md:text-2xl'
+  }
   
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
@@ -205,9 +239,9 @@ export function Play() {
   const currentPage = getCurrentPage()
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-black text-white flex flex-col relative">
+    <div ref={containerRef} className="h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Top Controls */}
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+      <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon"
@@ -246,42 +280,44 @@ export function Play() {
         </Button>
       </div>
 
-      {/* Presentation Content */}
-      <div className="flex-1 p-6">
-        <div className="max-w-6xl mx-auto">
+      {/* Presentation Content Container - Takes full height minus navigation */}
+      <div className="flex-1 flex flex-col justify-center px-6 py-16 pb-24 overflow-hidden">
+        <div className="max-w-6xl mx-auto w-full h-full flex flex-col justify-center">
           {currentPage?.title && (
-            <h1 className={`text-4xl md:text-6xl lg:text-7xl font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)}`}>
+            <h1 className={`${getTitleFontSizeClass(titleFontSize)} font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)} flex-shrink-0`}>
               {currentPage.title}
             </h1>
           )}
           
           {currentPage?.description && (
-            <p className={`text-xl md:text-2xl text-center text-white/90 leading-relaxed max-w-5xl mx-auto capitalize ${getSpacingClass(descriptionTitleSpacing)}`}>
+            <p className={`${getDescriptionFontSizeClass(descriptionFontSize)} text-center text-white/90 leading-relaxed max-w-5xl mx-auto capitalize ${getSpacingClass(descriptionTitleSpacing)} flex-shrink-0`}>
               {currentPage.description}
             </p>
           )}
 
           {currentPage?.image && (
-            <div className={`flex justify-center ${getSpacingClass(imageDescriptionSpacing)}`}>
+            <div className={`flex justify-center ${getSpacingClass(imageDescriptionSpacing)} flex-1 min-h-0`}>
               <img 
                 src={currentPage.image} 
                 alt="Slide content" 
-                className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-2xl"
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
               />
             </div>
           )}
           
           {currentPage?.code && (
-            <div className={`rounded-xl overflow-hidden shadow-2xl border border-white/10 ${getSpacingClass(codeImageSpacing)}`}>
+            <div className={`rounded-xl overflow-hidden shadow-2xl border border-white/10 ${getSpacingClass(codeImageSpacing)} flex-1 min-h-0`}>
               <SyntaxHighlighter
                 language={currentPage.codeLanguage || 'javascript'}
                 style={vscDarkPlus}
                 customStyle={{
-                  padding: '2.5rem',
-                  fontSize: '1.2rem',
-                  lineHeight: '1.7',
+                  padding: '1.5rem',
+                  fontSize: '1rem',
+                  lineHeight: '1.5',
                   background: 'rgba(15, 23, 42, 0.98)',
                   margin: 0,
+                  height: '100%',
+                  overflow: 'auto',
                 }}
                 showLineNumbers={true}
               >
@@ -291,7 +327,7 @@ export function Play() {
           )}
 
           {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
-            <div className="text-center text-white/60 py-20">
+            <div className="text-center text-white/60 flex-1 flex flex-col justify-center">
               <div className="w-24 h-24 mx-auto mb-6 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
                 <ChevronRight className="w-12 h-12" />
               </div>
@@ -303,9 +339,9 @@ export function Play() {
         </div>
       </div>
 
-      {/* Navigation Controls */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-        <div className="bg-black/60 backdrop-blur-sm rounded-xl px-6 py-4">
+      {/* Navigation Controls - Fixed at bottom */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
+        <div className="bg-black/80 backdrop-blur-sm rounded-xl px-6 py-3">
           <div className="flex items-center gap-6">
             <Button
               variant="ghost"
@@ -315,7 +351,7 @@ export function Play() {
               className="text-white hover:bg-white/20 disabled:opacity-30"
               title="Previous (← or ↑)"
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft className="w-5 h-5" />
             </Button>
 
             <div className="flex items-center gap-3">
@@ -348,7 +384,7 @@ export function Play() {
               className="text-white hover:bg-white/20 disabled:opacity-30"
               title="Next (→, ↓, or Space)"
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -356,11 +392,11 @@ export function Play() {
 
       {/* Settings Panel */}
       {isSettingsPanelOpen && (
-        <div className="absolute top-4 right-4 z-10 bg-black/90 backdrop-blur-sm border border-white/20 rounded-xl p-6 w-80">
+        <div className="absolute top-4 right-4 z-20 bg-black/95 backdrop-blur-sm border border-white/20 rounded-xl p-6 w-80 max-h-[calc(100vh-2rem)] overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h4 className="font-medium text-white">Presentation Settings</h4>
-              <p className="text-xs text-white/60 mt-1">Adjust spacing and layout</p>
+              <p className="text-xs text-white/60 mt-1">Adjust text sizes, spacing and layout</p>
             </div>
             <button
               onClick={() => setIsSettingsPanelOpen(false)}
@@ -370,69 +406,111 @@ export function Play() {
             </button>
           </div>
           
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-white">Title Top Spacing</label>
-                <span className="text-xs text-white/60">{titleTopSpacing}</span>
+          <div className="space-y-5">
+            {/* Text Sizes Section */}
+            <div className="space-y-4">
+              <h6 className="text-sm font-medium text-white/80 border-b border-white/10 pb-2">Text Sizes</h6>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Title Size</label>
+                  <span className="text-xs text-white/60">{titleFontSize}/10</span>
+                </div>
+                <input
+                  type="range"
+                  value={titleFontSize}
+                  onChange={(e) => setTitleFontSize(Number(e.target.value))}
+                  max={10}
+                  min={1}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                value={titleTopSpacing}
-                onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
-                max={24}
-                min={0}
-                step={1}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-              />
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Description Size</label>
+                  <span className="text-xs text-white/60">{descriptionFontSize}/10</span>
+                </div>
+                <input
+                  type="range"
+                  value={descriptionFontSize}
+                  onChange={(e) => setDescriptionFontSize(Number(e.target.value))}
+                  max={10}
+                  min={1}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
             </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-white">Description Spacing</label>
-                <span className="text-xs text-white/60">{descriptionTitleSpacing}</span>
+
+            {/* Spacing Section */}
+            <div className="space-y-4">
+              <h6 className="text-sm font-medium text-white/80 border-b border-white/10 pb-2">Spacing</h6>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Title Top Spacing</label>
+                  <span className="text-xs text-white/60">{titleTopSpacing}</span>
+                </div>
+                <input
+                  type="range"
+                  value={titleTopSpacing}
+                  onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                value={descriptionTitleSpacing}
-                onChange={(e) => setDescriptionTitleSpacing(Number(e.target.value))}
-                max={24}
-                min={0}
-                step={1}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-white">Image Spacing</label>
-                <span className="text-xs text-white/60">{imageDescriptionSpacing}</span>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Description Spacing</label>
+                  <span className="text-xs text-white/60">{descriptionTitleSpacing}</span>
+                </div>
+                <input
+                  type="range"
+                  value={descriptionTitleSpacing}
+                  onChange={(e) => setDescriptionTitleSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                value={imageDescriptionSpacing}
-                onChange={(e) => setImageDescriptionSpacing(Number(e.target.value))}
-                max={24}
-                min={0}
-                step={1}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-white">Code Spacing</label>
-                <span className="text-xs text-white/60">{codeImageSpacing}</span>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Image Spacing</label>
+                  <span className="text-xs text-white/60">{imageDescriptionSpacing}</span>
+                </div>
+                <input
+                  type="range"
+                  value={imageDescriptionSpacing}
+                  onChange={(e) => setImageDescriptionSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
               </div>
-              <input
-                type="range"
-                value={codeImageSpacing}
-                onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
-                max={24}
-                min={0}
-                step={1}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-              />
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Code Spacing</label>
+                  <span className="text-xs text-white/60">{codeImageSpacing}</span>
+                </div>
+                <input
+                  type="range"
+                  value={codeImageSpacing}
+                  onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
             </div>
           </div>
           
