@@ -961,10 +961,10 @@ export function Presentation() {
               {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
                 <div className="text-center text-white/50 py-12">
                   <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
-                    <Plus className="w-6 h-6" />
+                    <FileText className="w-6 h-6" />
                   </div>
                   <h2 className="text-xl font-bold mb-2">Empty Slide</h2>
-                  <p className="text-white/70">Click "Add Content" to get started</p>
+                  <p className="text-white/70">Click the + button in the sidebar to add a new slide, then use the content buttons to add content</p>
                 </div>
               )}
             </div>
