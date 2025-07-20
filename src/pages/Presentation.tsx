@@ -72,7 +72,7 @@ export function Presentation() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Settings states
-  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
+  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false)
   const [titleTopSpacing, setTitleTopSpacing] = useState(8) // Top margin for title
   const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(6) // Space between title and description
   const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(6) // Space between description and image
@@ -420,8 +420,8 @@ export function Presentation() {
   if (isPlayMode) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col relative">
-        {/* Exit Button */}
-        <div className="absolute top-4 left-4 z-10">
+        {/* Top Controls */}
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -429,6 +429,14 @@ export function Presentation() {
             className="text-white hover:bg-white/20 transition-colors"
           >
             <X className="w-6 h-6" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
+            className="text-white hover:bg-white/20 transition-colors"
+          >
+            <Settings className="w-5 h-5" />
           </Button>
         </div>
 
@@ -528,6 +536,71 @@ export function Presentation() {
             </Button>
           </div>
         </div>
+
+        {/* Settings Panel in Play Mode */}
+        {isSettingsPanelOpen && (
+          <div className="absolute top-4 right-4 z-10 bg-black/80 backdrop-blur-sm border border-white/20 rounded-lg p-4 w-80">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-medium text-white">Spacing Settings</h4>
+              <button
+                onClick={() => setIsSettingsPanelOpen(false)}
+                className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-white">Title Top: {titleTopSpacing}</label>
+                <input
+                  type="range"
+                  value={titleTopSpacing}
+                  onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-white">Description: {descriptionTitleSpacing}</label>
+                <input
+                  type="range"
+                  value={descriptionTitleSpacing}
+                  onChange={(e) => setDescriptionTitleSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-white">Image: {imageDescriptionSpacing}</label>
+                <input
+                  type="range"
+                  value={imageDescriptionSpacing}
+                  onChange={(e) => setImageDescriptionSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-white">Code: {codeImageSpacing}</label>
+                <input
+                  type="range"
+                  value={codeImageSpacing}
+                  onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -563,7 +636,7 @@ export function Presentation() {
               <h2 className="font-semibold">Slides</h2>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setIsSettingsDialogOpen(true)}
+                  onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
                   className="p-2 hover:bg-muted rounded-lg transition-colors"
                   title="Presentation Settings"
                 >
@@ -739,8 +812,15 @@ export function Presentation() {
 
         {/* Right Panel - Live Preview */}
         <div className="flex-1 bg-black text-white flex flex-col">
-          <div className="px-6 py-4 border-b border-white/20">
+          <div className="px-6 py-4 border-b border-white/20 flex items-center justify-between">
             <h3 className="font-medium">Live Preview</h3>
+            <button
+              onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
+              className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
+              title="Presentation Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
           
           <div className="flex-1 p-6">
@@ -857,6 +937,71 @@ export function Presentation() {
               )}
             </div>
           </div>
+          
+          {/* Settings Panel */}
+          {isSettingsPanelOpen && (
+            <div className="border-t border-white/20 bg-gray-900 p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-white">Spacing Settings</h4>
+                <button
+                  onClick={() => setIsSettingsPanelOpen(false)}
+                  className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white">Title Top: {titleTopSpacing}</label>
+                  <input
+                    type="range"
+                    value={titleTopSpacing}
+                    onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
+                    max={24}
+                    min={0}
+                    step={1}
+                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white">Description: {descriptionTitleSpacing}</label>
+                  <input
+                    type="range"
+                    value={descriptionTitleSpacing}
+                    onChange={(e) => setDescriptionTitleSpacing(Number(e.target.value))}
+                    max={24}
+                    min={0}
+                    step={1}
+                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white">Image: {imageDescriptionSpacing}</label>
+                  <input
+                    type="range"
+                    value={imageDescriptionSpacing}
+                    onChange={(e) => setImageDescriptionSpacing(Number(e.target.value))}
+                    max={24}
+                    min={0}
+                    step={1}
+                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white">Code: {codeImageSpacing}</label>
+                  <input
+                    type="range"
+                    value={codeImageSpacing}
+                    onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
+                    max={24}
+                    min={0}
+                    step={1}
+                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1126,46 +1271,6 @@ export function Presentation() {
         </DialogContent>
       </Dialog>
 
-      {/* Settings Dialog */}
-      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Presentation Settings</DialogTitle>
-            <DialogDescription>
-              Adjust settings that apply to all slides in this presentation.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Title Top Spacing</label>
-              <div className="space-y-3">
-                <input
-                  type="range"
-                  value={titleTopSpacing}
-                  onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
-                  max={24}
-                  min={0}
-                  step={1}
-                  className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>No spacing</span>
-                  <span className="font-medium">Current: {titleTopSpacing}</span>
-                  <span>Max spacing</span>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Controls the vertical spacing between title and other content elements.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsSettingsDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
     </div>
   )
