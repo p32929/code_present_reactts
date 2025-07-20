@@ -15,6 +15,7 @@ export interface PresentationPage {
   description?: string
   code?: string
   codeLanguage?: string
+  image?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -31,6 +32,11 @@ db.version(1).stores({
 db.version(2).stores({
   projects: '++id, name, createdAt, updatedAt',
   pages: '++id, projectId, pageNumber, createdAt, updatedAt'
+})
+
+db.version(3).stores({
+  projects: '++id, name, createdAt, updatedAt',
+  pages: '++id, projectId, pageNumber, createdAt, updatedAt, image'
 })
 
 export class DatabaseService {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Edit, Trash2, RotateCcw, Play, Settings, FileEdit, Type } from "lucide-react"
+import { Plus, Trash2, RotateCcw, Play, FileEdit, Type } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -130,10 +130,10 @@ export function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border">
-        <div className="px-4 py-4 flex items-center justify-between">
+        <div className="px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">My Presentations</h1>
-            <p className="text-muted-foreground">Manage your presentation projects</p>
+            <h1 className="text-lg font-semibold">My Presentations</h1>
+            <p className="text-sm text-muted-foreground">Manage your presentation projects</p>
           </div>
           
           <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export function Dashboard() {
       </header>
 
       {/* Content */}
-      <main className="px-4 py-4">
+      <main className="px-6 py-6">
         {projects.length === 0 ? (
           <div className="text-center py-20">
             <h2 className="text-xl font-semibold mb-2">No projects yet</h2>

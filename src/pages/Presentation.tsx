@@ -1,9 +1,8 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom"
-import { useEffect, useState, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, RotateCcw, CheckSquare, Square, X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -57,23 +56,18 @@ export function Presentation() {
   const [isDeletePageDialogOpen, setIsDeletePageDialogOpen] = useState(false)
   const [pageToDelete, setPageToDelete] = useState<PresentationPage | null>(null)
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
-  const [isResetPagesDialogOpen, setIsResetPagesDialogOpen] = useState(false)
-  const [resetPagesConfirmation, setResetPagesConfirmation] = useState("")
-  const [resetPagesRandomNumber, setResetPagesRandomNumber] = useState(0)
 
   // Multi-selection states
   const [selectedPageIds, setSelectedPageIds] = useState<Set<number>>(new Set())
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 
-  // Content editing states
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [editingDescription, setEditingDescription] = useState(false)
-  const [editingCode, setEditingCode] = useState(false)
+  // Content dialog states
+  const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false)
+  const [contentType, setContentType] = useState<'title' | 'description' | 'code' | 'image' | null>(null)
   const [tempTitle, setTempTitle] = useState("")
   const [tempDescription, setTempDescription] = useState("")
   const [tempCode, setTempCode] = useState("")
   const [tempCodeLanguage, setTempCodeLanguage] = useState("javascript")
-  const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [tempImage, setTempImage] = useState("")
 
   useEffect(() => {
     loadProject()
@@ -89,7 +83,7 @@ export function Presentation() {
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (isPlayMode && !editingTitle && !editingDescription && !editingCode) {
+      if (isPlayMode) {
         if (e.key === 'ArrowLeft') {
           handlePrevPage()
         } else if (e.key === 'ArrowRight') {
@@ -102,7 +96,7 @@ export function Presentation() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [isPlayMode, currentPageIndex, pages.length, editingTitle, editingDescription, editingCode])
+  }, [isPlayMode, currentPageIndex, pages.length])
 
   const loadProject = async () => {
     if (!id || isNaN(Number(id))) {
@@ -194,7 +188,6 @@ export function Presentation() {
       
       // Reset multi-select
       setSelectedPageIds(new Set())
-      setIsMultiSelectMode(false)
       
       // Adjust current page index if necessary
       if (currentPageIndex >= pages.length) {
@@ -207,51 +200,10 @@ export function Presentation() {
     }
   }
 
-  const handleResetAllPages = () => {
-    const randomNum = Math.floor(Math.random() * 90) + 10
-    setResetPagesRandomNumber(randomNum)
-    setResetPagesConfirmation("")
-    setIsResetPagesDialogOpen(true)
-  }
 
-  const handleConfirmResetPages = async () => {
-    if (resetPagesConfirmation === resetPagesRandomNumber.toString() && project) {
-      try {
-        await DatabaseService.deleteAllProjectPages(project.id!)
-        await loadPages(project.id!)
-        setCurrentPageIndex(0)
-        setSelectedPageIds(new Set())
-        setIsMultiSelectMode(false)
-        setIsResetPagesDialogOpen(false)
-        setResetPagesConfirmation("")
-      } catch (error) {
-        console.error('Failed to reset pages:', error)
-      }
-    }
-  }
 
-  const handlePageSelect = (pageId: number, checked: boolean) => {
-    const newSelected = new Set(selectedPageIds)
-    if (checked) {
-      newSelected.add(pageId)
-    } else {
-      newSelected.delete(pageId)
-    }
-    setSelectedPageIds(newSelected)
-  }
 
-  const handleSelectAll = () => {
-    if (selectedPageIds.size === pages.length) {
-      setSelectedPageIds(new Set())
-    } else {
-      setSelectedPageIds(new Set(pages.map(p => p.id!)))
-    }
-  }
 
-  const exitMultiSelectMode = () => {
-    setIsMultiSelectMode(false)
-    setSelectedPageIds(new Set())
-  }
 
   const handlePrevPage = () => {
     if (currentPageIndex > 0) {
@@ -269,80 +221,83 @@ export function Presentation() {
     return pages[currentPageIndex] || null
   }
 
-  const autoSave = useCallback(async (field: 'title' | 'description' | 'code', value: string, language?: string) => {
+  const handleEditContent = (type: 'title' | 'description' | 'code' | 'image') => {
+    const currentPage = getCurrentPage()
+    if (!currentPage) return
+
+    // Pre-fill the form with existing content
+    if (type === 'title') {
+      setTempTitle(currentPage.title || "")
+    } else if (type === 'description') {
+      setTempDescription(currentPage.description || "")
+    } else if (type === 'code') {
+      setTempCode(currentPage.code || "")
+      setTempCodeLanguage(currentPage.codeLanguage || "javascript")
+    } else if (type === 'image') {
+      setTempImage(currentPage.image || "")
+    }
+
+    setContentType(type)
+  }
+
+  const handleAddContent = async () => {
+    const currentPage = getCurrentPage()
+    if (!currentPage || !contentType) return
+
+    try {
+      const updates: Partial<PresentationPage> = {}
+      
+      if (contentType === 'title') {
+        updates.title = tempTitle
+      } else if (contentType === 'description') {
+        updates.description = tempDescription
+      } else if (contentType === 'code') {
+        updates.code = tempCode
+        updates.codeLanguage = tempCodeLanguage
+      } else if (contentType === 'image') {
+        updates.image = tempImage
+      }
+
+      await DatabaseService.updatePage(currentPage.id!, updates)
+      await loadPages(project!.id!)
+      
+      // Reset form
+      setTempTitle("")
+      setTempDescription("")
+      setTempCode("")
+      setTempImage("")
+      setContentType(null)
+      setIsAddContentDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to add content:', error)
+    }
+  }
+
+  const handleDeleteContent = async (contentType: 'title' | 'description' | 'code' | 'image') => {
     const currentPage = getCurrentPage()
     if (!currentPage) return
 
     try {
-      if (field === 'title') {
-        await DatabaseService.updatePage(currentPage.id!, { title: value })
-      } else if (field === 'description') {
-        await DatabaseService.updatePage(currentPage.id!, { description: value })
-      } else if (field === 'code') {
-        await DatabaseService.updatePage(currentPage.id!, { 
-          code: value, 
-          codeLanguage: language || tempCodeLanguage 
-        })
+      const updates: Partial<PresentationPage> = {}
+      
+      if (contentType === 'title') {
+        updates.title = undefined
+      } else if (contentType === 'description') {
+        updates.description = undefined
+      } else if (contentType === 'code') {
+        updates.code = undefined
+        updates.codeLanguage = undefined
+      } else if (contentType === 'image') {
+        updates.image = undefined
       }
+
+      await DatabaseService.updatePage(currentPage.id!, updates)
       await loadPages(project!.id!)
     } catch (error) {
-      console.error('Failed to auto-save:', error)
+      console.error('Failed to delete content:', error)
     }
-  }, [project, tempCodeLanguage, getCurrentPage, loadPages])
-
-  const debounceAutoSave = useCallback((field: 'title' | 'description' | 'code', value: string, language?: string) => {
-    if (autoSaveTimeout) {
-      clearTimeout(autoSaveTimeout)
-    }
-    
-    const timeout = setTimeout(() => {
-      autoSave(field, value, language)
-    }, 1000)
-    
-    setAutoSaveTimeout(timeout)
-  }, [autoSave, autoSaveTimeout])
-
-  const handleTitleChange = (value: string) => {
-    setTempTitle(value)
-    debounceAutoSave('title', value)
   }
 
-  const handleDescriptionChange = (value: string) => {
-    setTempDescription(value)
-    debounceAutoSave('description', value)
-  }
-
-  const handleCodeChange = (value: string) => {
-    setTempCode(value)
-    debounceAutoSave('code', value, tempCodeLanguage)
-  }
-
-  const handleCodeLanguageChange = (language: string) => {
-    setTempCodeLanguage(language)
-    debounceAutoSave('code', tempCode, language)
-  }
-
-  const startEditingTitle = () => {
-    if (isPlayMode) return
-    const currentPage = getCurrentPage()
-    setTempTitle(currentPage?.title || "")
-    setEditingTitle(true)
-  }
-
-  const startEditingDescription = () => {
-    if (isPlayMode) return
-    const currentPage = getCurrentPage()
-    setTempDescription(currentPage?.description || "")
-    setEditingDescription(true)
-  }
-
-  const startEditingCode = () => {
-    if (isPlayMode) return
-    const currentPage = getCurrentPage()
-    setTempCode(currentPage?.code || "")
-    setTempCodeLanguage(currentPage?.codeLanguage || "javascript")
-    setEditingCode(true)
-  }
 
   if (isLoading) {
     return (
@@ -361,20 +316,20 @@ export function Presentation() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-        <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
-          <div className="px-4 py-4 flex items-center gap-4">
+        <header className="border-b border-border">
+          <div className="px-6 py-4 flex items-center gap-3">
             <Button 
               variant="ghost" 
-              size="icon"
+              size="sm"
               onClick={() => navigate("/")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <h1 className="text-xl font-semibold">Project Not Found</h1>
+            <h1 className="text-lg font-semibold">Project Not Found</h1>
           </div>
         </header>
         
-        <main className="px-4 py-4">
+        <main className="px-6 py-6">
           <div className="text-center py-20">
             <h2 className="text-4xl font-bold mb-4">Project Not Found</h2>
             <p className="text-xl text-muted-foreground mb-8">
@@ -408,22 +363,32 @@ export function Presentation() {
         </div>
 
         {/* Presentation Content */}
-        <div className="flex-1 flex items-center justify-center p-8">
-          <div className="max-w-5xl w-full space-y-12">
+        <div className="flex-1 p-6">
+          <div className="max-w-5xl mx-auto space-y-8">
             {currentPage?.title && (
-              <h1 className="text-5xl md:text-6xl font-bold text-center text-white leading-tight">
+              <h1 className="text-4xl md:text-5xl font-bold text-center text-white leading-tight">
                 {currentPage.title}
               </h1>
             )}
             
             {currentPage?.description && (
-              <p className="text-xl md:text-2xl text-center text-white/90 leading-relaxed max-w-4xl mx-auto">
+              <p className="text-xl text-center text-white/90 leading-relaxed max-w-4xl mx-auto">
                 {currentPage.description}
               </p>
             )}
+
+            {currentPage?.image && (
+              <div className="flex justify-center">
+                <img 
+                  src={currentPage.image} 
+                  alt="Slide content" 
+                  className="max-w-full max-h-96 object-contain rounded-lg"
+                />
+              </div>
+            )}
             
             {currentPage?.code && (
-              <div className="rounded-2xl overflow-hidden shadow-2xl">
+              <div className="rounded-xl overflow-hidden shadow-2xl">
                 <SyntaxHighlighter
                   language={currentPage.codeLanguage || 'javascript'}
                   style={vscDarkPlus}
@@ -441,7 +406,7 @@ export function Presentation() {
               </div>
             )}
 
-            {!currentPage?.title && !currentPage?.description && !currentPage?.code && (
+            {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
               <div className="text-center text-white/60">
                 <h2 className="text-4xl font-bold mb-4">Empty Slide</h2>
                 <p className="text-xl">Exit play mode to add content to this slide</p>
@@ -499,362 +464,471 @@ export function Presentation() {
 
   // Edit Mode Layout
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
-        <div className="px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="border-b border-border">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Button 
               variant="ghost" 
-              size="icon"
+              size="sm"
               onClick={() => navigate("/")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">{project?.name}</h1>
+              <h1 className="text-lg font-semibold">{project?.name}</h1>
               <p className="text-sm text-muted-foreground">
-                Editing Mode • Page {currentPageIndex + 1} of {pages.length}
+                Slide {currentPageIndex + 1} of {pages.length}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setIsPlayMode(true)}
-              disabled={pages.length === 0}
-              className="gap-2"
-            >
-              <Play className="w-4 h-4" />
-              Play Presentation
-            </Button>
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-81px)]">
-        {/* Left Sidebar - Pages List */}
-        <div className="w-64 border-r border-border/50 bg-background/50 backdrop-blur-sm px-4 py-4 overflow-y-auto">
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-lg">Pages</h2>
-                <div className="flex gap-1">
-                  {!isMultiSelectMode ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => getCurrentPage() && handleClonePage(getCurrentPage()!.id!)}
-                        disabled={!getCurrentPage()}
-                      >
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleAddPage}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={exitMultiSelectMode}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
+      <div className="flex h-[calc(100vh-77px)]">
+        {/* Left Panel - Slides */}
+        <div className="w-80 border-r bg-muted/30 overflow-y-auto">
+          <div className="p-4">
+            {/* Header with Actions */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold">Slides</h2>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleAddPage}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
+                  title="Add Slide"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsPlayMode(true)}
+                  disabled={pages.length === 0}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Present"
+                >
+                  <Play className="w-4 h-4" />
+                </button>
               </div>
-              
-              {!isMultiSelectMode ? (
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsMultiSelectMode(true)}
-                    className="flex-1 text-xs"
-                    disabled={pages.length === 0}
-                  >
-                    Select Multiple
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleResetAllPages}
-                    className="text-destructive hover:text-destructive text-xs"
-                    disabled={pages.length === 0}
-                  >
-                    <RotateCcw className="w-3 h-3 mr-1" />
-                    Reset All
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {selectedPageIds.size} of {pages.length} selected
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleSelectAll}
-                      className="h-6 text-xs"
-                    >
-                      {selectedPageIds.size === pages.length ? 'Deselect All' : 'Select All'}
-                    </Button>
-                  </div>
-                  {selectedPageIds.size > 0 && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setIsBulkDeleteDialogOpen(true)}
-                      className="w-full text-xs"
-                    >
-                      <Trash2 className="w-3 h-3 mr-1" />
-                      Delete Selected ({selectedPageIds.size})
-                    </Button>
-                  )}
-                </div>
-              )}
+            </div>
+
+            {/* Navigation */}
+            <div className="flex items-center justify-between p-2 bg-background rounded-lg border mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={currentPageIndex === 0}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-sm font-medium">
+                {currentPageIndex + 1} / {pages.length}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPageIndex === pages.length - 1}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Actions */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => getCurrentPage() && handleClonePage(getCurrentPage()!.id!)}
+                disabled={!getCurrentPage()}
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                Clone
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (getCurrentPage()) {
+                    setPageToDelete(getCurrentPage()!)
+                    setIsDeletePageDialogOpen(true)
+                  }
+                }}
+                disabled={!getCurrentPage()}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete
+              </Button>
             </div>
             
-            <div className="space-y-3">
-              {pages.map((page, index) => {
-                const isSelected = selectedPageIds.has(page.id!)
-                return (
-                  <Card 
-                    key={page.id}
-                    className={`cursor-pointer transition-all duration-200 hover:shadow-md group ${
-                      index === currentPageIndex 
-                        ? 'ring-2 ring-primary bg-primary/5' 
-                        : 'hover:bg-muted/50'
-                    } ${
-                      isSelected ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/20' : ''
-                    }`}
-                    onClick={() => {
-                      if (isMultiSelectMode) {
-                        handlePageSelect(page.id!, !isSelected)
-                      } else {
-                        setCurrentPageIndex(index)
-                      }
-                    }}
-                  >
-                    <CardHeader className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {isMultiSelectMode && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handlePageSelect(page.id!, !isSelected)
-                              }}
-                            >
-                              {isSelected ? (
-                                <CheckSquare className="w-4 h-4 text-blue-600" />
-                              ) : (
-                                <Square className="w-4 h-4" />
-                              )}
-                            </Button>
-                          )}
-                          <span className="bg-primary/10 text-primary text-xs font-medium px-2 py-1 rounded-full">
-                            {page.pageNumber}
-                          </span>
-                          <CardTitle className="text-sm truncate">
-                            {page.title || `Slide ${page.pageNumber}`}
-                          </CardTitle>
-                        </div>
-                        {!isMultiSelectMode && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 opacity-0 group-hover:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setPageToDelete(page)
-                              setIsDeletePageDialogOpen(true)
-                            }}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        {page.title && <div className="flex items-center gap-1"><Type className="w-3 h-3" /> Title</div>}
-                        {page.description && <div className="flex items-center gap-1"><FileText className="w-3 h-3" /> Description</div>}
-                        {page.code && <div className="flex items-center gap-1"><Code2 className="w-3 h-3" /> {page.codeLanguage}</div>}
-                      </div>
-                    </CardHeader>
-                  </Card>
-                )
-              })}
+            {/* Slides List */}
+            <div className="space-y-1">
+              {pages.map((page, index) => (
+                <div
+                  key={page.id}
+                  onClick={() => setCurrentPageIndex(index)}
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                    index === currentPageIndex
+                      ? 'bg-primary/10 border border-primary/20'
+                      : 'bg-background/50 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                    index === currentPageIndex
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {page.pageNumber}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {page.title || `Slide ${page.pageNumber}`}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {page.title && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" title="Title"></div>}
+                    {page.description && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" title="Description"></div>}
+                    {page.code && <div className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Code"></div>}
+                    {page.image && <div className="w-1.5 h-1.5 bg-purple-500 rounded-full" title="Image"></div>}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Content Controls */}
+            {getCurrentPage() && (
+              <div className="flex items-center justify-center gap-1 mt-2">
+                <button
+                  onClick={() => {
+                    const currentPage = getCurrentPage()!
+                    if (!currentPage.title) {
+                      setContentType('title')
+                    } else {
+                      handleEditContent('title')
+                    }
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    getCurrentPage()?.title 
+                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                      : 'hover:bg-muted'
+                  }`}
+                  title={getCurrentPage()?.title ? "Edit Title" : "Add Title"}
+                >
+                  <Type className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const currentPage = getCurrentPage()!
+                    if (!currentPage.description) {
+                      setContentType('description')
+                    } else {
+                      handleEditContent('description')
+                    }
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    getCurrentPage()?.description 
+                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                      : 'hover:bg-muted'
+                  }`}
+                  title={getCurrentPage()?.description ? "Edit Description" : "Add Description"}
+                >
+                  <FileText className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const currentPage = getCurrentPage()!
+                    if (!currentPage.code) {
+                      setContentType('code')
+                    } else {
+                      handleEditContent('code')
+                    }
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    getCurrentPage()?.code 
+                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                      : 'hover:bg-muted'
+                  }`}
+                  title={getCurrentPage()?.code ? "Edit Code" : "Add Code"}
+                >
+                  <Code2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const currentPage = getCurrentPage()!
+                    if (!currentPage.image) {
+                      setContentType('image')
+                    } else {
+                      handleEditContent('image')
+                    }
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    getCurrentPage()?.image 
+                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                      : 'hover:bg-muted'
+                  }`}
+                  title={getCurrentPage()?.image ? "Edit Image" : "Add Image"}
+                >
+                  <Image className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Side - Live Preview */}
-        <div className="flex-1 flex">
-          {/* Editor Panel */}
-          <div className="w-80 px-4 py-4 overflow-y-auto border-r border-border/50 bg-background/30">
-            <div className="space-y-4">
-              <div className="text-center pb-3 border-b">
-                <h2 className="text-base font-semibold mb-1">Edit Content</h2>
-                <p className="text-xs text-muted-foreground">Page {currentPage?.pageNumber}</p>
-              </div>
-
-              {/* Title Editor */}
-              <div className="space-y-3">
-                <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
-                  <Type className="w-3 h-3" />
-                  TITLE
-                </label>
-                {editingTitle ? (
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="Enter title..."
-                      value={tempTitle}
-                      onChange={(e) => handleTitleChange(e.target.value)}
-                      onBlur={() => setEditingTitle(false)}
-                      autoFocus
-                    />
-                    <p className="text-xs text-muted-foreground">Auto-saving... Press Enter or click outside to finish</p>
-                  </div>
-                ) : (
-                  <div
-                    onClick={startEditingTitle}
-                    className="p-3 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      {currentPage?.title || "Click to add title"}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Description Editor */}
-              <div className="space-y-3">
-                <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
-                  <FileText className="w-3 h-3" />
-                  DESCRIPTION
-                </label>
-                {editingDescription ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      placeholder="Enter description..."
-                      value={tempDescription}
-                      onChange={(e) => handleDescriptionChange(e.target.value)}
-                      onBlur={() => setEditingDescription(false)}
-                      rows={4}
-                      autoFocus
-                    />
-                    <p className="text-xs text-muted-foreground">Auto-saving... Press Escape or click outside to finish</p>
-                  </div>
-                ) : (
-                  <div
-                    onClick={startEditingDescription}
-                    className="p-3 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      {currentPage?.description || "Click to add description"}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Code Editor */}
-              <div className="space-y-3">
-                <label className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
-                  <Code2 className="w-3 h-3" />
-                  CODE
-                </label>
-                {editingCode ? (
-                  <div className="space-y-2">
-                    <Select value={tempCodeLanguage} onValueChange={handleCodeLanguageChange}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PROGRAMMING_LANGUAGES.map((lang) => (
-                          <SelectItem key={lang.value} value={lang.value}>
-                            {lang.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Textarea
-                      placeholder="Enter code..."
-                      value={tempCode}
-                      onChange={(e) => handleCodeChange(e.target.value)}
-                      onBlur={() => setEditingCode(false)}
-                      rows={8}
-                      className="font-mono text-sm"
-                      autoFocus
-                    />
-                    <p className="text-xs text-muted-foreground">Auto-saving... Press Escape or click outside to finish</p>
-                  </div>
-                ) : (
-                  <div
-                    onClick={startEditingCode}
-                    className="p-3 border border-dashed border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                  >
-                    <p className="text-sm text-muted-foreground">
-                      {currentPage?.code ? `${currentPage.codeLanguage} code` : "Click to add code"}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* Right Panel - Live Preview */}
+        <div className="flex-1 bg-black text-white flex flex-col">
+          <div className="px-6 py-4 border-b border-white/20">
+            <h3 className="font-medium">Live Preview</h3>
           </div>
-
-          {/* Live Preview */}
-          <div className="flex-1 bg-black text-white flex items-center justify-center px-4 py-4">
-            <div className="max-w-4xl w-full space-y-8">
+          
+          <div className="flex-1 p-6">
+            <div className="max-w-4xl mx-auto space-y-6">
               {currentPage?.title && (
-                <h1 className="text-4xl md:text-5xl font-bold text-center leading-tight">
-                  {currentPage.title}
-                </h1>
+                <div className="group relative">
+                  <h1 
+                    className="text-3xl md:text-4xl font-bold text-center leading-tight cursor-pointer hover:text-white/80 transition-colors"
+                    onClick={() => handleEditContent('title')}
+                  >
+                    {currentPage.title}
+                  </h1>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteContent('title')
+                    }}
+                    className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-red-500/20 hover:text-red-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
               )}
               
               {currentPage?.description && (
-                <p className="text-lg md:text-xl text-center text-white/90 leading-relaxed">
-                  {currentPage.description}
-                </p>
-              )}
-              
-              {currentPage?.code && (
-                <div className="rounded-xl overflow-hidden">
-                  <SyntaxHighlighter
-                    language={currentPage.codeLanguage || 'javascript'}
-                    style={vscDarkPlus}
-                    customStyle={{
-                      padding: '1.5rem',
-                      fontSize: '0.95rem',
-                      lineHeight: '1.5',
-                      background: 'rgba(15, 23, 42, 0.8)',
-                      margin: 0,
-                    }}
-                    showLineNumbers={true}
+                <div className="group relative">
+                  <p 
+                    className="text-lg text-center text-white/90 leading-relaxed max-w-3xl mx-auto cursor-pointer hover:text-white transition-colors"
+                    onClick={() => handleEditContent('description')}
                   >
-                    {currentPage.code}
-                  </SyntaxHighlighter>
+                    {currentPage.description}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteContent('description')
+                    }}
+                    className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-red-500/20 hover:text-red-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               )}
 
-              {!currentPage?.title && !currentPage?.description && !currentPage?.code && (
-                <div className="text-center text-white/50">
-                  <h2 className="text-3xl font-bold mb-4">Empty Slide</h2>
-                  <p className="text-lg">Add content using the editor on the left</p>
+              {currentPage?.image && (
+                <div className="group relative flex justify-center">
+                  <img 
+                    src={currentPage.image} 
+                    alt="Slide content" 
+                    className="max-w-full max-h-96 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => handleEditContent('image')}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteContent('image')
+                    }}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-red-500/20 hover:text-red-400 bg-black/50"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+              
+              {currentPage?.code && (
+                <div className="group relative">
+                  <div 
+                    className="rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-white/20 transition-all"
+                    onClick={() => handleEditContent('code')}
+                  >
+                    <SyntaxHighlighter
+                      language={currentPage.codeLanguage || 'javascript'}
+                      style={vscDarkPlus}
+                      customStyle={{
+                        padding: '1.5rem',
+                        fontSize: '0.9rem',
+                        lineHeight: '1.5',
+                        background: 'rgba(15, 23, 42, 0.8)',
+                        margin: 0,
+                      }}
+                      showLineNumbers={true}
+                    >
+                      {currentPage.code}
+                    </SyntaxHighlighter>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteContent('code')
+                    }}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-red-500/20 hover:text-red-400 bg-black/50"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
+
+              {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
+                <div className="text-center text-white/50 py-12">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-bold mb-2">Empty Slide</h2>
+                  <p className="text-white/70">Click "Add Content" to get started</p>
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Add Content Dialog */}
+      <Dialog open={isAddContentDialogOpen} onOpenChange={setIsAddContentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Content</DialogTitle>
+            <DialogDescription>
+              Choose what type of content to add to this slide.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2"
+              onClick={() => setContentType('title')}
+            >
+              <Type className="w-6 h-6" />
+              <span>Title</span>
+            </Button>
+            <Button
+              variant="outline" 
+              className="h-20 flex flex-col gap-2"
+              onClick={() => setContentType('description')}
+            >
+              <FileText className="w-6 h-6" />
+              <span>Description</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2"
+              onClick={() => setContentType('code')}
+            >
+              <Code2 className="w-6 h-6" />
+              <span>Code</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col gap-2"
+              onClick={() => setContentType('image')}
+            >
+              <Image className="w-6 h-6" />
+              <span>Image</span>
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddContentDialogOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Content Edit Dialog */}
+      <Dialog open={contentType !== null} onOpenChange={(open) => !open && setContentType(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {contentType === 'title' && (getCurrentPage()?.title ? 'Edit Title' : 'Add Title')}
+              {contentType === 'description' && (getCurrentPage()?.description ? 'Edit Description' : 'Add Description')} 
+              {contentType === 'code' && (getCurrentPage()?.code ? 'Edit Code' : 'Add Code')}
+              {contentType === 'image' && (getCurrentPage()?.image ? 'Edit Image' : 'Add Image')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {contentType === 'title' && (
+              <Input
+                placeholder="Enter slide title..."
+                value={tempTitle}
+                onChange={(e) => setTempTitle(e.target.value)}
+                autoFocus
+              />
+            )}
+            {contentType === 'description' && (
+              <Textarea
+                placeholder="Enter slide description..."
+                value={tempDescription}
+                onChange={(e) => setTempDescription(e.target.value)}
+                rows={4}
+                autoFocus
+              />
+            )}
+            {contentType === 'code' && (
+              <div className="space-y-3">
+                <Select value={tempCodeLanguage} onValueChange={setTempCodeLanguage}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROGRAMMING_LANGUAGES.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  placeholder="Enter your code..."
+                  value={tempCode}
+                  onChange={(e) => setTempCode(e.target.value)}
+                  rows={8}
+                  className="font-mono text-sm"
+                  autoFocus
+                />
+              </div>
+            )}
+            {contentType === 'image' && (
+              <Input
+                placeholder="Enter image URL..."
+                value={tempImage}
+                onChange={(e) => setTempImage(e.target.value)}
+                autoFocus
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContentType(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddContent}>
+              {contentType === 'title' && (getCurrentPage()?.title ? 'Save Changes' : 'Add Title')}
+              {contentType === 'description' && (getCurrentPage()?.description ? 'Save Changes' : 'Add Description')}
+              {contentType === 'code' && (getCurrentPage()?.code ? 'Save Changes' : 'Add Code')}
+              {contentType === 'image' && (getCurrentPage()?.image ? 'Save Changes' : 'Add Image')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialogs */}
       <Dialog open={isAddPageDialogOpen} onOpenChange={setIsAddPageDialogOpen}>
@@ -915,60 +989,6 @@ export function Presentation() {
         </DialogContent>
       </Dialog>
 
-      {/* Reset All Pages Dialog */}
-      <Dialog open={isResetPagesDialogOpen} onOpenChange={setIsResetPagesDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <RotateCcw className="w-5 h-5" />
-              Reset All Pages
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              This will permanently delete <strong>ALL {pages.length} page{pages.length !== 1 ? 's' : ''}</strong> in this presentation. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-6">
-            <div className="bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/20 rounded-xl p-6 space-y-4">
-              <div className="text-center">
-                <p className="text-sm font-medium text-destructive mb-2">
-                  To confirm this dangerous action, please type the number:
-                </p>
-                <div className="bg-destructive/20 rounded-lg p-4 mb-4">
-                  <span className="font-bold text-3xl text-destructive tracking-wider">
-                    {resetPagesRandomNumber}
-                  </span>
-                </div>
-              </div>
-              <Input
-                placeholder="Enter the number above"
-                value={resetPagesConfirmation}
-                onChange={(e) => setResetPagesConfirmation(e.target.value)}
-                className="text-center text-lg font-mono border-destructive/50 focus:border-destructive bg-background"
-                autoFocus
-              />
-              {resetPagesConfirmation && resetPagesConfirmation !== resetPagesRandomNumber.toString() && (
-                <p className="text-sm text-destructive text-center">
-                  The number doesn't match. Please try again.
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsResetPagesDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleConfirmResetPages}
-              disabled={resetPagesConfirmation !== resetPagesRandomNumber.toString()}
-              className="bg-gradient-to-r from-destructive to-destructive/90"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset All Pages
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
