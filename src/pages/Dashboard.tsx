@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download } from "lucide-react"
+import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,13 @@ export function Dashboard() {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [resetConfirmation, setResetConfirmation] = useState("")
   const [resetRandomNumber, setResetRandomNumber] = useState(0)
+  
+  // Import presentation states
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importError, setImportError] = useState("")
+  const [isDragOver, setIsDragOver] = useState(false)
   
   const navigate = useNavigate()
 
@@ -224,6 +231,100 @@ export function Dashboard() {
     }
   }
 
+  const handleImportPresentation = () => {
+    setImportFile(null)
+    setImportError("")
+    setIsDragOver(false)
+    setIsImportDialogOpen(true)
+  }
+
+  const validateAndSetFile = (file: File) => {
+    if (file.type === 'application/json' || file.name.endsWith('.json')) {
+      setImportFile(file)
+      setImportError("")
+    } else {
+      setImportError("Please select a valid JSON file")
+      setImportFile(null)
+    }
+  }
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      validateAndSetFile(file)
+    }
+  }
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (event: React.DragEvent) => {
+    event.preventDefault()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault()
+    setIsDragOver(false)
+    
+    const files = event.dataTransfer.files
+    if (files.length > 0) {
+      const file = files[0]
+      validateAndSetFile(file)
+    }
+  }
+
+  const handleConfirmImport = async () => {
+    if (!importFile) return
+
+    setIsImporting(true)
+    setImportError("")
+
+    try {
+      const fileContent = await importFile.text()
+      const importData = JSON.parse(fileContent)
+
+      // Validate the import data structure
+      if (!importData.name || !Array.isArray(importData.slides)) {
+        throw new Error("Invalid file format. Expected a JSON file with 'name' and 'slides' properties.")
+      }
+
+      // Create a new project
+      const projectId = await DatabaseService.createProject(importData.name)
+
+      // Import all slides
+      for (const slide of importData.slides) {
+        const pageId = await DatabaseService.createPage(projectId)
+        await DatabaseService.updatePage(pageId, {
+          title: slide.title || '',
+          description: slide.description || '',
+          code: slide.code || '',
+          codeLanguage: slide.codeLanguage || 'javascript',
+          image: slide.image || ''
+        })
+      }
+
+      // Reload projects and navigate to the imported project
+      await loadProjects()
+      setIsImportDialogOpen(false)
+      setImportFile(null)
+      navigate(`/presentation/${projectId}`)
+    } catch (error) {
+      console.error('Failed to import presentation:', error)
+      if (error instanceof SyntaxError) {
+        setImportError("Invalid JSON file format")
+      } else if (error instanceof Error) {
+        setImportError(error.message)
+      } else {
+        setImportError("Failed to import presentation")
+      }
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -259,6 +360,13 @@ export function Dashboard() {
                   Reset All
                 </Button>
               )}
+              <Button
+                variant="outline"
+                onClick={handleImportPresentation}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import
+              </Button>
               <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Presentation
@@ -546,6 +654,88 @@ export function Dashboard() {
             >
               <RotateCcw className="w-4 h-4 mr-2" />
               Reset Everything
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Presentation Dialog */}
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Presentation</DialogTitle>
+            <DialogDescription>
+              Select a JSON file exported from CodePresent to import a presentation with all its slides.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="import-file-input"
+              />
+              <label htmlFor="import-file-input">
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                    isDragOver 
+                      ? 'border-primary bg-primary/5' 
+                      : importFile 
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
+                        : 'border-border hover:border-primary/50'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  <Upload className={`w-8 h-8 mx-auto mb-2 ${
+                    isDragOver 
+                      ? 'text-primary' 
+                      : importFile 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-muted-foreground'
+                  }`} />
+                  <p className="text-sm font-medium mb-1">
+                    {isDragOver 
+                      ? 'Drop your JSON file here' 
+                      : importFile 
+                        ? importFile.name 
+                        : 'Drag and drop a JSON file, or click to select'
+                    }
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Only JSON files exported from CodePresent are supported
+                  </p>
+                </div>
+              </label>
+            </div>
+            {importError && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                <p className="text-sm text-destructive">{importError}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmImport} 
+              disabled={!importFile || isImporting}
+            >
+              {isImporting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import Presentation
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
