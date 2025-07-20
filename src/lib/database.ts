@@ -133,6 +133,7 @@ export class DatabaseService {
       description: originalPage.description,
       code: originalPage.code,
       codeLanguage: originalPage.codeLanguage,
+      image: originalPage.image,
       createdAt: now,
       updatedAt: now
     })
