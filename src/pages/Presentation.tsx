@@ -540,7 +540,7 @@ export function Presentation() {
       <div className="flex h-[calc(100vh-69px)]">
         {/* Left Panel - Slides */}
         <div className="w-72 border-r bg-muted/30 overflow-y-auto">
-          <div className="p-2">
+          <div className="px-2 py-2">
             {/* Header with Actions */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold">Slides</h2>
@@ -663,7 +663,7 @@ export function Presentation() {
                       ? 'border-primary border-2 bg-primary/5' : ''
                   } ${!isMultiSelectMode ? 'cursor-move' : ''} ${!isMultiSelectMode ? 'hover:shadow-lg' : ''}`}
                 >
-                  <div className="p-2">
+                  <div className="px-1.5 py-1.5">
                     <div className="flex items-start gap-2">
                       {/* Drag handle - only show when not in multi-select mode */}
                       {!isMultiSelectMode && (
