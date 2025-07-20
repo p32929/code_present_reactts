@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, Layout } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -62,7 +62,6 @@ export function Presentation() {
   // Content dialog states
   const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false)
   const [contentType, setContentType] = useState<'title' | 'description' | 'code' | 'image' | null>(null)
-  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   
   // Auto-save states
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'pending'>('saved')
@@ -75,62 +74,6 @@ export function Presentation() {
   const [tempImage, setTempImage] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
-  // Slide templates
-  const slideTemplates = [
-    {
-      id: 'title-slide',
-      name: 'Title Slide',
-      description: 'Perfect for section headers and introductions',
-      content: { title: 'Your Title Here', description: 'Your subtitle or description' }
-    },
-    {
-      id: 'code-demo',
-      name: 'Code Demo',
-      description: 'Title with code example',
-      content: { 
-        title: 'Code Example',
-        code: 'function hello() {\n  console.log("Hello, World!");\n}',
-        codeLanguage: 'javascript'
-      }
-    },
-    {
-      id: 'image-slide',
-      name: 'Image Slide',
-      description: 'Title with description and image placeholder',
-      content: { 
-        title: 'Visual Example',
-        description: 'Add your description here'
-      }
-    },
-    {
-      id: 'full-code',
-      name: 'Full Code',
-      description: 'Code-focused slide without title',
-      content: { 
-        code: '// Your code example\nconst example = "Hello World";\nconsole.log(example);',
-        codeLanguage: 'javascript'
-      }
-    },
-    {
-      id: 'intro-slide',
-      name: 'Introduction',
-      description: 'Perfect for presentation opening',
-      content: { 
-        title: 'Welcome',
-        description: 'An introduction to our topic'
-      }
-    },
-    {
-      id: 'summary-slide',
-      name: 'Summary',
-      description: 'Wrap up your presentation',
-      content: { 
-        title: 'Summary',
-        description: 'Key takeaways and next steps'
-      }
-    }
-  ]
 
   useEffect(() => {
     loadProject()
@@ -196,9 +139,9 @@ export function Presentation() {
       const projectPages = await DatabaseService.getProjectPages(projectId)
       setPages(projectPages)
       
-      // Create first page if none exist
+      // Reset current page index if no pages exist
       if (projectPages.length === 0) {
-        await handleAddPage()
+        setCurrentPageIndex(0)
       }
     } catch (error) {
       console.error('Failed to load pages:', error)
@@ -219,33 +162,6 @@ export function Presentation() {
     }
   }
   
-  const handleCreateFromTemplate = async (template: typeof slideTemplates[0]) => {
-    if (!project) return
-    
-    try {
-      const pageId = await DatabaseService.createPage(project.id!)
-      
-      // Apply template content
-      const updates: Partial<PresentationPage> = {}
-      if (template.content.title) updates.title = template.content.title
-      if (template.content.description) updates.description = template.content.description
-      if (template.content.code) {
-        updates.code = template.content.code
-        updates.codeLanguage = template.content.codeLanguage || 'javascript'
-      }
-      
-      if (Object.keys(updates).length > 0) {
-        await DatabaseService.updatePage(pageId, updates)
-      }
-      
-      await loadPages(project.id!)
-      setCurrentPageIndex(pages.length) // Navigate to new page
-      setIsTemplateDialogOpen(false)
-      triggerAutoSave()
-    } catch (error) {
-      console.error('Failed to create page from template:', error)
-    }
-  }
 
   const handleClonePage = async (pageId: number) => {
     if (!project) return
@@ -264,15 +180,19 @@ export function Presentation() {
 
     try {
       await DatabaseService.deletePage(pageToDelete.id!)
-      await loadPages(project!.id!)
+      
+      // Force reload pages to get updated data
+      const updatedPages = await DatabaseService.getProjectPages(project!.id!)
+      setPages(updatedPages)
       
       // Adjust current page index if necessary
-      if (currentPageIndex >= pages.length - 1) {
-        setCurrentPageIndex(Math.max(0, pages.length - 2))
+      if (currentPageIndex >= updatedPages.length) {
+        setCurrentPageIndex(Math.max(0, updatedPages.length - 1))
       }
       
       setIsDeletePageDialogOpen(false)
       setPageToDelete(null)
+      triggerAutoSave()
     } catch (error) {
       console.error('Failed to delete page:', error)
     }
@@ -283,18 +203,22 @@ export function Presentation() {
 
     try {
       await DatabaseService.deleteMultiplePages(Array.from(selectedPageIds))
-      await loadPages(project!.id!)
+      
+      // Force reload pages to get updated data
+      const updatedPages = await DatabaseService.getProjectPages(project!.id!)
+      setPages(updatedPages)
       
       // Reset multi-select
       setSelectedPageIds(new Set())
       setIsMultiSelectMode(false)
       
       // Adjust current page index if necessary
-      if (currentPageIndex >= pages.length) {
-        setCurrentPageIndex(Math.max(0, pages.length - 1))
+      if (currentPageIndex >= updatedPages.length) {
+        setCurrentPageIndex(Math.max(0, updatedPages.length - 1))
       }
       
       setIsBulkDeleteDialogOpen(false)
+      triggerAutoSave()
     } catch (error) {
       console.error('Failed to delete pages:', error)
     }
@@ -561,16 +485,9 @@ export function Presentation() {
                     <button
                       onClick={handleAddPage}
                       className="p-2 hover:bg-muted rounded-lg transition-colors"
-                      title="Add Blank Slide"
+                      title="Add Slide"
                     >
                       <Plus className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setIsTemplateDialogOpen(true)}
-                      className="p-2 hover:bg-muted rounded-lg transition-colors"
-                      title="Add From Template"
-                    >
-                      <Layout className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => navigate(`/play/${id}`)}
@@ -1239,44 +1156,6 @@ export function Presentation() {
         </DialogContent>
       </Dialog>
 
-      {/* Slide Templates Dialog */}
-      <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Choose a Slide Template</DialogTitle>
-            <DialogDescription>
-              Select a template to quickly create a new slide with pre-defined content.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            {slideTemplates.map((template) => (
-              <div
-                key={template.id}
-                onClick={() => handleCreateFromTemplate(template)}
-                className="border rounded-lg p-4 hover:bg-muted/50 cursor-pointer transition-colors group"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <Layout className="w-5 h-5 text-primary" />
-                  <h4 className="font-medium">{template.name}</h4>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  {template.description}
-                </p>
-                <div className="text-xs bg-muted/50 rounded p-2 font-mono">
-                  {template.content.title && <div className="font-bold">{template.content.title}</div>}
-                  {template.content.description && <div className="text-muted-foreground">{template.content.description}</div>}
-                  {template.content.code && <div className="text-blue-600">{template.content.code.split('\n')[0]}...</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
     </div>
   )

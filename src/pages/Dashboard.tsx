@@ -38,6 +38,27 @@ export function Dashboard() {
     loadProjects()
   }, [])
 
+  // Reload projects when returning to dashboard (to update slide counts)
+  useEffect(() => {
+    const handleFocus = () => {
+      loadProjects()
+    }
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadProjects()
+      }
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   useEffect(() => {
     filterAndSortProjects()
   }, [projects, searchQuery, sortBy])
