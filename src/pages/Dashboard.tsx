@@ -194,7 +194,7 @@ export function Dashboard() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/presentation/${project.id}?play=true`)}
+                          onClick={() => navigate(`/play/${project.id}`)}
                           title="Play presentation"
                         >
                           <Play className="w-4 h-4" />

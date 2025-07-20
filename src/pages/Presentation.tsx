@@ -1,6 +1,6 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, Settings } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -42,14 +42,12 @@ const PROGRAMMING_LANGUAGES = [
 export function Presentation() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   
   const [project, setProject] = useState<Project | null>(null)
   const [pages, setPages] = useState<PresentationPage[]>([])
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [isPlayMode, setIsPlayMode] = useState(false)
 
   // Dialog states
   const [isAddPageDialogOpen, setIsAddPageDialogOpen] = useState(false)
@@ -59,6 +57,7 @@ export function Presentation() {
 
   // Multi-selection states
   const [selectedPageIds, setSelectedPageIds] = useState<Set<number>>(new Set())
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 
   // Content dialog states
   const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false)
@@ -71,41 +70,10 @@ export function Presentation() {
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Settings states
-  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false)
-  const [titleTopSpacing, setTitleTopSpacing] = useState(8) // Top margin for title
-  const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(6) // Space between title and description
-  const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(6) // Space between description and image
-  const [codeImageSpacing, setCodeImageSpacing] = useState(6) // Space between image and code
-
   useEffect(() => {
     loadProject()
   }, [id])
 
-  useEffect(() => {
-    // Check if we should start in play mode
-    const playParam = searchParams.get('play')
-    if (playParam === 'true') {
-      setIsPlayMode(true)
-    }
-  }, [searchParams])
-
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (isPlayMode) {
-        if (e.key === 'ArrowLeft') {
-          handlePrevPage()
-        } else if (e.key === 'ArrowRight') {
-          handleNextPage()
-        } else if (e.key === 'Escape') {
-          setIsPlayMode(false)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [isPlayMode, currentPageIndex, pages.length])
 
   const loadProject = async () => {
     if (!id || isNaN(Number(id))) {
@@ -197,6 +165,7 @@ export function Presentation() {
       
       // Reset multi-select
       setSelectedPageIds(new Set())
+      setIsMultiSelectMode(false)
       
       // Adjust current page index if necessary
       if (currentPageIndex >= pages.length) {
@@ -207,6 +176,29 @@ export function Presentation() {
     } catch (error) {
       console.error('Failed to delete pages:', error)
     }
+  }
+
+  const handlePageSelect = (pageId: number, checked: boolean) => {
+    const newSelected = new Set(selectedPageIds)
+    if (checked) {
+      newSelected.add(pageId)
+    } else {
+      newSelected.delete(pageId)
+    }
+    setSelectedPageIds(newSelected)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedPageIds.size === pages.length) {
+      setSelectedPageIds(new Set())
+    } else {
+      setSelectedPageIds(new Set(pages.map(p => p.id!)))
+    }
+  }
+
+  const exitMultiSelectMode = () => {
+    setIsMultiSelectMode(false)
+    setSelectedPageIds(new Set())
   }
 
 
@@ -340,33 +332,6 @@ export function Presentation() {
     }
   }
 
-  const getSpacingClass = (spacingValue: number) => {
-    const spacingMap: { [key: number]: string } = {
-      0: 'mt-0',
-      1: 'mt-1',
-      2: 'mt-2', 
-      3: 'mt-3',
-      4: 'mt-4',
-      5: 'mt-5',
-      6: 'mt-6',
-      7: 'mt-7',
-      8: 'mt-8',
-      9: 'mt-9',
-      10: 'mt-10',
-      11: 'mt-11',
-      12: 'mt-12',
-      14: 'mt-14',
-      16: 'mt-16',
-      20: 'mt-20',
-      24: 'mt-24'
-    }
-    // Find the closest available spacing value
-    const availableValues = Object.keys(spacingMap).map(Number).sort((a, b) => a - b)
-    const closest = availableValues.reduce((prev, curr) => 
-      Math.abs(curr - spacingValue) < Math.abs(prev - spacingValue) ? curr : prev
-    )
-    return spacingMap[closest] || 'mt-8'
-  }
 
 
   if (isLoading) {
@@ -416,194 +381,6 @@ export function Presentation() {
 
   const currentPage = getCurrentPage()
 
-  // Play Mode Layout
-  if (isPlayMode) {
-    return (
-      <div className="min-h-screen bg-black text-white flex flex-col relative">
-        {/* Top Controls */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsPlayMode(false)}
-            className="text-white hover:bg-white/20 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
-            className="text-white hover:bg-white/20 transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Presentation Content */}
-        <div className="flex-1 p-6">
-          <div className="max-w-5xl mx-auto">
-            {currentPage?.title && (
-              <h1 className={`text-4xl md:text-5xl font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)}`}>
-                {currentPage.title}
-              </h1>
-            )}
-            
-            {currentPage?.description && (
-              <p className={`text-xl text-center text-white/90 leading-relaxed max-w-4xl mx-auto capitalize ${getSpacingClass(descriptionTitleSpacing)}`}>
-                {currentPage.description}
-              </p>
-            )}
-
-            {currentPage?.image && (
-              <div className={`flex justify-center ${getSpacingClass(imageDescriptionSpacing)}`}>
-                <img 
-                  src={currentPage.image} 
-                  alt="Slide content" 
-                  className="max-w-full max-h-96 object-contain rounded-lg"
-                />
-              </div>
-            )}
-            
-            {currentPage?.code && (
-              <div className={`rounded-xl overflow-hidden shadow-2xl ${getSpacingClass(codeImageSpacing)}`}>
-                <SyntaxHighlighter
-                  language={currentPage.codeLanguage || 'javascript'}
-                  style={vscDarkPlus}
-                  customStyle={{
-                    padding: '2rem',
-                    fontSize: '1.1rem',
-                    lineHeight: '1.6',
-                    background: 'rgba(30, 30, 30, 0.95)',
-                    margin: 0,
-                  }}
-                  showLineNumbers={true}
-                >
-                  {currentPage.code}
-                </SyntaxHighlighter>
-              </div>
-            )}
-
-            {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
-              <div className="text-center text-white/60">
-                <h2 className="text-4xl font-bold mb-4">Empty Slide</h2>
-                <p className="text-xl">Exit play mode to add content to this slide</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Navigation Controls */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-          <div className="flex items-center gap-4">
-            {/* Previous Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handlePrevPage}
-              disabled={currentPageIndex === 0}
-              className="text-white hover:bg-white/20 disabled:opacity-30"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </Button>
-
-            {/* Progress Dots */}
-            <div className="flex items-center gap-2">
-              {pages.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentPageIndex(index)}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    index === currentPageIndex
-                      ? 'bg-white scale-125'
-                      : index < currentPageIndex
-                      ? 'bg-white/60'
-                      : 'bg-white/30'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Next Button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleNextPage}
-              disabled={currentPageIndex === pages.length - 1}
-              className="text-white hover:bg-white/20 disabled:opacity-30"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Settings Panel in Play Mode */}
-        {isSettingsPanelOpen && (
-          <div className="absolute top-4 right-4 z-10 bg-black/80 backdrop-blur-sm border border-white/20 rounded-lg p-4 w-80">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-medium text-white">Spacing Settings</h4>
-              <button
-                onClick={() => setIsSettingsPanelOpen(false)}
-                className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-white">Title Top: {titleTopSpacing}</label>
-                <input
-                  type="range"
-                  value={titleTopSpacing}
-                  onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
-                  max={24}
-                  min={0}
-                  step={1}
-                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-white">Description: {descriptionTitleSpacing}</label>
-                <input
-                  type="range"
-                  value={descriptionTitleSpacing}
-                  onChange={(e) => setDescriptionTitleSpacing(Number(e.target.value))}
-                  max={24}
-                  min={0}
-                  step={1}
-                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-white">Image: {imageDescriptionSpacing}</label>
-                <input
-                  type="range"
-                  value={imageDescriptionSpacing}
-                  onChange={(e) => setImageDescriptionSpacing(Number(e.target.value))}
-                  max={24}
-                  min={0}
-                  step={1}
-                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-white">Code: {codeImageSpacing}</label>
-                <input
-                  type="range"
-                  value={codeImageSpacing}
-                  onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
-                  max={24}
-                  min={0}
-                  step={1}
-                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
 
   // Edit Mode Layout
   return (
@@ -635,49 +412,79 @@ export function Presentation() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold">Slides</h2>
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors"
-                  title="Presentation Settings"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={handleAddPage}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors"
-                  title="Add Slide"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setIsPlayMode(true)}
-                  disabled={pages.length === 0}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Present"
-                >
-                  <Play className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => getCurrentPage() && handleClonePage(getCurrentPage()!.id!)}
-                  disabled={!getCurrentPage()}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Clone Slide"
-                >
-                  <Copy className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    if (getCurrentPage()) {
-                      setPageToDelete(getCurrentPage()!)
-                      setIsDeletePageDialogOpen(true)
-                    }
-                  }}
-                  disabled={!getCurrentPage()}
-                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-destructive hover:text-destructive"
-                  title="Delete Slide"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {!isMultiSelectMode ? (
+                  <>
+                    <button
+                      onClick={handleAddPage}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      title="Add Slide"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/play/${id}`)}
+                      disabled={pages.length === 0}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Present"
+                    >
+                      <Play className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => getCurrentPage() && handleClonePage(getCurrentPage()!.id!)}
+                      disabled={!getCurrentPage()}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Clone Slide"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (getCurrentPage()) {
+                          setPageToDelete(getCurrentPage()!)
+                          setIsDeletePageDialogOpen(true)
+                        }
+                      }}
+                      disabled={!getCurrentPage()}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-destructive hover:text-destructive"
+                      title="Delete Slide"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setIsMultiSelectMode(true)}
+                      disabled={pages.length === 0}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Select Multiple"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleSelectAll}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      title={selectedPageIds.size === pages.length ? "Deselect All" : "Select All"}
+                    >
+                      {selectedPageIds.size === pages.length ? <Square className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
+                    </button>
+                    <button
+                      onClick={() => setIsBulkDeleteDialogOpen(true)}
+                      disabled={selectedPageIds.size === 0}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-destructive hover:text-destructive"
+                      title={`Delete ${selectedPageIds.size} Selected`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={exitMultiSelectMode}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      title="Exit Selection Mode"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -711,11 +518,23 @@ export function Presentation() {
                     index === currentPageIndex
                       ? 'bg-primary/10 border border-primary/20'
                       : 'bg-background/50 hover:bg-muted/50'
-                  }`}
+                  } ${selectedPageIds.has(page.id!) ? 'ring-2 ring-primary/30' : ''}`}
                 >
+                  {isMultiSelectMode && (
+                    <button
+                      onClick={() => handlePageSelect(page.id!, !selectedPageIds.has(page.id!))}
+                      className="p-1 hover:bg-muted/50 rounded transition-colors"
+                    >
+                      {selectedPageIds.has(page.id!) ? (
+                        <CheckSquare className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
                   <div 
-                    onClick={() => setCurrentPageIndex(index)}
-                    className="flex items-center gap-2 flex-1 cursor-pointer"
+                    onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
+                    className={`flex items-center gap-2 flex-1 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
                   >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
                       index === currentPageIndex
@@ -812,21 +631,14 @@ export function Presentation() {
 
         {/* Right Panel - Live Preview */}
         <div className="flex-1 bg-black text-white flex flex-col">
-          <div className="px-6 py-4 border-b border-white/20 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-white/20">
             <h3 className="font-medium">Live Preview</h3>
-            <button
-              onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
-              className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
-              title="Presentation Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
           
           <div className="flex-1 p-6">
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto space-y-6">
               {currentPage?.title && (
-                <div className={`group relative ${getSpacingClass(titleTopSpacing)}`}>
+                <div className="group relative">
                   <h1 
                     className="text-3xl md:text-4xl font-bold text-center leading-tight cursor-pointer hover:text-white/80 transition-colors capitalize"
                     onClick={() => handleEditContent('title')}
@@ -848,7 +660,7 @@ export function Presentation() {
               )}
               
               {currentPage?.description && (
-                <div className={`group relative ${getSpacingClass(descriptionTitleSpacing)}`}>
+                <div className="group relative">
                   <p 
                     className="text-lg text-center text-white/90 leading-relaxed max-w-3xl mx-auto cursor-pointer hover:text-white transition-colors capitalize"
                     onClick={() => handleEditContent('description')}
@@ -870,7 +682,7 @@ export function Presentation() {
               )}
 
               {currentPage?.image && (
-                <div className={`group relative flex justify-center ${getSpacingClass(imageDescriptionSpacing)}`}>
+                <div className="group relative flex justify-center">
                   <img 
                     src={currentPage.image} 
                     alt="Slide content" 
@@ -892,7 +704,7 @@ export function Presentation() {
               )}
               
               {currentPage?.code && (
-                <div className={`group relative ${getSpacingClass(codeImageSpacing)}`}>
+                <div className="group relative">
                   <div 
                     className="rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-white/20 transition-all"
                     onClick={() => handleEditContent('code')}
@@ -937,71 +749,6 @@ export function Presentation() {
               )}
             </div>
           </div>
-          
-          {/* Settings Panel */}
-          {isSettingsPanelOpen && (
-            <div className="border-t border-white/20 bg-gray-900 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-medium text-white">Spacing Settings</h4>
-                <button
-                  onClick={() => setIsSettingsPanelOpen(false)}
-                  className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white">Title Top: {titleTopSpacing}</label>
-                  <input
-                    type="range"
-                    value={titleTopSpacing}
-                    onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
-                    max={24}
-                    min={0}
-                    step={1}
-                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white">Description: {descriptionTitleSpacing}</label>
-                  <input
-                    type="range"
-                    value={descriptionTitleSpacing}
-                    onChange={(e) => setDescriptionTitleSpacing(Number(e.target.value))}
-                    max={24}
-                    min={0}
-                    step={1}
-                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white">Image: {imageDescriptionSpacing}</label>
-                  <input
-                    type="range"
-                    value={imageDescriptionSpacing}
-                    onChange={(e) => setImageDescriptionSpacing(Number(e.target.value))}
-                    max={24}
-                    min={0}
-                    step={1}
-                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white">Code: {codeImageSpacing}</label>
-                  <input
-                    type="range"
-                    value={codeImageSpacing}
-                    onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
-                    max={24}
-                    min={0}
-                    step={1}
-                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
