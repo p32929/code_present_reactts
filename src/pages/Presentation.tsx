@@ -539,8 +539,8 @@ export function Presentation() {
 
       <div className="flex h-[calc(100vh-69px)]">
         {/* Left Panel - Slides */}
-        <div className="w-80 border-r bg-muted/30 overflow-y-auto">
-          <div className="p-4">
+        <div className="w-72 border-r bg-muted/30 overflow-y-auto">
+          <div className="p-2">
             {/* Header with Actions */}
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold">Slides</h2>
@@ -663,8 +663,8 @@ export function Presentation() {
                       ? 'border-primary border-2 bg-primary/5' : ''
                   } ${!isMultiSelectMode ? 'cursor-move' : ''} ${!isMultiSelectMode ? 'hover:shadow-lg' : ''}`}
                 >
-                  <div className="p-3">
-                    <div className="flex items-start gap-3">
+                  <div className="p-2">
+                    <div className="flex items-start gap-2">
                       {/* Drag handle - only show when not in multi-select mode */}
                       {!isMultiSelectMode && (
                         <div className="pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -687,38 +687,47 @@ export function Presentation() {
                         </div>
                       )}
                       
+                      {/* Slide number badge */}
+                      <div className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-medium flex-shrink-0 mt-0.5 ${
+                        index === currentPageIndex
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {page.pageNumber}
+                      </div>
+                      
                       {/* Slide thumbnail preview */}
                       <div 
                         onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
-                        className={`w-16 h-12 rounded border-2 flex-shrink-0 overflow-hidden cursor-pointer transition-all ${
+                        className={`w-12 h-9 rounded border flex-shrink-0 overflow-hidden cursor-pointer transition-all ${
                           index === currentPageIndex
                             ? 'border-primary bg-primary/5'
                             : 'border-border bg-muted/20 hover:border-primary/50'
                         }`}
                       >
-                        <div className="w-full h-full flex flex-col items-center justify-center text-[10px] p-1 space-y-0.5">
+                        <div className="w-full h-full flex flex-col items-center justify-center text-[8px] p-0.5 space-y-0.5">
                           {page.title && (
                             <div className="font-bold truncate w-full text-center leading-none">
-                              {page.title.slice(0, 8)}...
+                              {page.title.slice(0, 6)}
                             </div>
                           )}
                           {page.description && (
                             <div className="text-muted-foreground truncate w-full text-center leading-none">
-                              {page.description.slice(0, 12)}...
+                              {page.description.slice(0, 8)}
                             </div>
                           )}
                           {page.code && (
-                            <div className="text-blue-500 text-[8px] font-mono leading-none">
-                              {`<${page.codeLanguage || 'code'}/>`}
+                            <div className="text-blue-500 text-[7px] font-mono leading-none">
+                              CODE
                             </div>
                           )}
                           {page.image && (
-                            <div className="text-green-500 text-[8px] leading-none">
-                              [IMG]
+                            <div className="text-green-500 text-[7px] leading-none">
+                              IMG
                             </div>
                           )}
                           {!page.title && !page.description && !page.code && !page.image && (
-                            <div className="text-muted-foreground text-[8px] leading-none">
+                            <div className="text-muted-foreground text-[7px] leading-none">
                               Empty
                             </div>
                           )}
@@ -730,32 +739,21 @@ export function Presentation() {
                         onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
                         className={`flex-1 min-w-0 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
                       >
-                        <div className="flex items-start gap-3 mb-2">
-                          <div className={`w-5 h-5 rounded flex items-center justify-center text-xs font-medium mt-0.5 ${
-                            index === currentPageIndex
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground'
-                          }`}>
-                            {page.pageNumber}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate capitalize">
-                              {page.title || `Slide ${page.pageNumber}`}
-                            </div>
-                            {(page.description || page.code || page.image) && (
-                              <div className="text-xs text-muted-foreground truncate mt-1">
-                                {page.description ? page.description.slice(0, 35) + '...' : 
-                                 page.code ? `Code: ${page.codeLanguage}` :
-                                 page.image ? 'Image slide' : ''}
-                              </div>
-                            )}
-                          </div>
+                        <div className="text-sm font-medium truncate leading-tight">
+                          {page.title || `Slide ${page.pageNumber}`}
                         </div>
+                        {(page.description || page.code || page.image) && (
+                          <div className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">
+                            {page.description ? page.description.slice(0, 20) + '...' : 
+                             page.code ? `${page.codeLanguage}` :
+                             page.image ? 'Image' : ''}
+                          </div>
+                        )}
                       </div>
                       
                       {/* Content type indicators and edit buttons */}
-                      <div className="flex flex-col gap-1 pt-1">
-                        <div className="flex items-center gap-1">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-0.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -766,7 +764,7 @@ export function Presentation() {
                               }
                             }}
                             disabled={!!(page.code && page.image)}
-                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                               page.title 
                                 ? 'bg-primary/20 text-primary hover:bg-primary/30' 
                                 : 'hover:bg-muted text-muted-foreground hover:text-foreground'
@@ -785,7 +783,7 @@ export function Presentation() {
                               }
                             }}
                             disabled={!!(page.code && page.image)}
-                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                               page.description 
                                 ? 'bg-primary/20 text-primary hover:bg-primary/30' 
                                 : 'hover:bg-muted text-muted-foreground hover:text-foreground'
@@ -795,7 +793,7 @@ export function Presentation() {
                             <FileText className="w-3 h-3" />
                           </button>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -806,7 +804,7 @@ export function Presentation() {
                               }
                             }}
                             disabled={!!page.image}
-                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                               page.code 
                                 ? 'bg-primary/20 text-primary hover:bg-primary/30' 
                                 : 'hover:bg-muted text-muted-foreground hover:text-foreground'
@@ -825,7 +823,7 @@ export function Presentation() {
                               }
                             }}
                             disabled={!!page.code}
-                            className={`p-1.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                               page.image 
                                 ? 'bg-primary/20 text-primary hover:bg-primary/30' 
                                 : 'hover:bg-muted text-muted-foreground hover:text-foreground'
