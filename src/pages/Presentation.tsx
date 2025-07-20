@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
-import { useEffect, useState, useRef } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square } from "lucide-react"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, Layout } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -62,6 +62,12 @@ export function Presentation() {
   // Content dialog states
   const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false)
   const [contentType, setContentType] = useState<'title' | 'description' | 'code' | 'image' | null>(null)
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
+  
+  // Auto-save states
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'pending'>('saved')
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [tempTitle, setTempTitle] = useState("")
   const [tempDescription, setTempDescription] = useState("")
   const [tempCode, setTempCode] = useState("")
@@ -69,10 +75,97 @@ export function Presentation() {
   const [tempImage, setTempImage] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Slide templates
+  const slideTemplates = [
+    {
+      id: 'title-slide',
+      name: 'Title Slide',
+      description: 'Perfect for section headers and introductions',
+      content: { title: 'Your Title Here', description: 'Your subtitle or description' }
+    },
+    {
+      id: 'code-demo',
+      name: 'Code Demo',
+      description: 'Title with code example',
+      content: { 
+        title: 'Code Example',
+        code: 'function hello() {\n  console.log("Hello, World!");\n}',
+        codeLanguage: 'javascript'
+      }
+    },
+    {
+      id: 'image-slide',
+      name: 'Image Slide',
+      description: 'Title with description and image placeholder',
+      content: { 
+        title: 'Visual Example',
+        description: 'Add your description here'
+      }
+    },
+    {
+      id: 'full-code',
+      name: 'Full Code',
+      description: 'Code-focused slide without title',
+      content: { 
+        code: '// Your code example\nconst example = "Hello World";\nconsole.log(example);',
+        codeLanguage: 'javascript'
+      }
+    },
+    {
+      id: 'intro-slide',
+      name: 'Introduction',
+      description: 'Perfect for presentation opening',
+      content: { 
+        title: 'Welcome',
+        description: 'An introduction to our topic'
+      }
+    },
+    {
+      id: 'summary-slide',
+      name: 'Summary',
+      description: 'Wrap up your presentation',
+      content: { 
+        title: 'Summary',
+        description: 'Key takeaways and next steps'
+      }
+    }
+  ]
 
   useEffect(() => {
     loadProject()
   }, [id])
+  
+  // Auto-save functionality
+  const triggerAutoSave = useCallback(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+    }
+    
+    setAutoSaveStatus('pending')
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      setAutoSaveStatus('saving')
+      // Update project timestamp to indicate activity
+      if (project?.id) {
+        DatabaseService.updateProject(project.id, {})
+          .then(() => {
+            setAutoSaveStatus('saved')
+            setLastSaved(new Date())
+          })
+          .catch(() => {
+            setAutoSaveStatus('pending')
+          })
+      }
+    }, 2000)
+  }, [project?.id])
+  
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current)
+      }
+    }
+  }, [])
 
 
   const loadProject = async () => {
@@ -120,8 +213,37 @@ export function Presentation() {
       await loadPages(project.id!)
       setCurrentPageIndex(pages.length) // Navigate to new page
       setIsAddPageDialogOpen(false)
+      triggerAutoSave()
     } catch (error) {
       console.error('Failed to create page:', error)
+    }
+  }
+  
+  const handleCreateFromTemplate = async (template: typeof slideTemplates[0]) => {
+    if (!project) return
+    
+    try {
+      const pageId = await DatabaseService.createPage(project.id!)
+      
+      // Apply template content
+      const updates: Partial<PresentationPage> = {}
+      if (template.content.title) updates.title = template.content.title
+      if (template.content.description) updates.description = template.content.description
+      if (template.content.code) {
+        updates.code = template.content.code
+        updates.codeLanguage = template.content.codeLanguage || 'javascript'
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        await DatabaseService.updatePage(pageId, updates)
+      }
+      
+      await loadPages(project.id!)
+      setCurrentPageIndex(pages.length) // Navigate to new page
+      setIsTemplateDialogOpen(false)
+      triggerAutoSave()
+    } catch (error) {
+      console.error('Failed to create page from template:', error)
     }
   }
 
@@ -261,6 +383,7 @@ export function Presentation() {
 
       await DatabaseService.updatePage(currentPage.id!, updates)
       await loadPages(project!.id!)
+      triggerAutoSave()
       
       // Reset form
       setTempTitle("")
@@ -295,6 +418,7 @@ export function Presentation() {
 
       await DatabaseService.updatePage(currentPage.id!, updates)
       await loadPages(project!.id!)
+      triggerAutoSave()
     } catch (error) {
       console.error('Failed to delete content:', error)
     }
@@ -397,6 +521,26 @@ export function Presentation() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <h1 className="text-lg font-semibold">{project?.name}</h1>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {autoSaveStatus === 'saving' && (
+                <div className="flex items-center gap-1">
+                  <div className="animate-spin rounded-full h-3 w-3 border border-muted-foreground border-t-transparent"></div>
+                  <span>Saving...</span>
+                </div>
+              )}
+              {autoSaveStatus === 'saved' && lastSaved && (
+                <div className="flex items-center gap-1">
+                  <Save className="w-3 h-3" />
+                  <span>Saved {new Date(lastSaved).toLocaleTimeString()}</span>
+                </div>
+              )}
+              {autoSaveStatus === 'pending' && (
+                <div className="flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Pending save...</span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -417,9 +561,16 @@ export function Presentation() {
                     <button
                       onClick={handleAddPage}
                       className="p-2 hover:bg-muted rounded-lg transition-colors"
-                      title="Add Slide"
+                      title="Add Blank Slide"
                     >
                       <Plus className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setIsTemplateDialogOpen(true)}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      title="Add From Template"
+                    >
+                      <Layout className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => navigate(`/play/${id}`)}
@@ -514,7 +665,7 @@ export function Presentation() {
               {pages.map((page, index) => (
                 <div
                   key={page.id}
-                  className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                  className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
                     index === currentPageIndex
                       ? 'bg-primary/10 border border-primary/20'
                       : 'bg-background/50 hover:bg-muted/50'
@@ -532,96 +683,146 @@ export function Presentation() {
                       )}
                     </button>
                   )}
+                  {/* Slide thumbnail preview */}
                   <div 
                     onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
-                    className={`flex items-center gap-2 flex-1 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
-                  >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                    className={`w-16 h-12 rounded border-2 flex-shrink-0 overflow-hidden cursor-pointer transition-all ${
                       index === currentPageIndex
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {page.pageNumber}
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-muted/30 hover:border-primary/50'
+                    }`}
+                  >
+                    <div className="w-full h-full flex flex-col items-center justify-center text-[10px] p-1 space-y-0.5">
+                      {page.title && (
+                        <div className="font-bold truncate w-full text-center leading-none">
+                          {page.title.slice(0, 8)}...
+                        </div>
+                      )}
+                      {page.description && (
+                        <div className="text-muted-foreground truncate w-full text-center leading-none">
+                          {page.description.slice(0, 12)}...
+                        </div>
+                      )}
+                      {page.code && (
+                        <div className="text-blue-500 text-[8px] font-mono leading-none">
+                          {`<${page.codeLanguage || 'code'}/>`}
+                        </div>
+                      )}
+                      {page.image && (
+                        <div className="text-green-500 text-[8px] leading-none">
+                          [IMG]
+                        </div>
+                      )}
+                      {!page.title && !page.description && !page.code && !page.image && (
+                        <div className="text-muted-foreground text-[8px] leading-none">
+                          Empty
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
+                  </div>
+                  
+                  {/* Slide content info */}
+                  <div 
+                    onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
+                    className={`flex-1 min-w-0 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${
+                        index === currentPageIndex
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {page.pageNumber}
+                      </div>
                       <div className="text-sm font-medium truncate capitalize">
                         {page.title || `Slide ${page.pageNumber}`}
                       </div>
                     </div>
+                    {(page.description || page.code || page.image) && (
+                      <div className="text-xs text-muted-foreground truncate">
+                        {page.description ? page.description.slice(0, 30) + '...' : 
+                         page.code ? `Code: ${page.codeLanguage}` :
+                         page.image ? 'Image slide' : ''}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!page.title) {
-                          setContentType('title')
-                        } else {
-                          handleEditContent('title')
-                        }
-                      }}
-                      className={`p-1 rounded transition-colors ${
-                        page.title 
-                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                      title={page.title ? "Edit Title" : "Add Title"}
-                    >
-                      <Type className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!page.description) {
-                          setContentType('description')
-                        } else {
-                          handleEditContent('description')
-                        }
-                      }}
-                      className={`p-1 rounded transition-colors ${
-                        page.description 
-                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                      title={page.description ? "Edit Description" : "Add Description"}
-                    >
-                      <FileText className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!page.code) {
-                          setContentType('code')
-                        } else {
-                          handleEditContent('code')
-                        }
-                      }}
-                      className={`p-1 rounded transition-colors ${
-                        page.code 
-                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                      title={page.code ? "Edit Code" : "Add Code"}
-                    >
-                      <Code2 className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (!page.image) {
-                          setContentType('image')
-                        } else {
-                          handleEditContent('image')
-                        }
-                      }}
-                      className={`p-1 rounded transition-colors ${
-                        page.image 
-                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                      title={page.image ? "Edit Image" : "Add Image"}
-                    >
-                      <Image className="w-3 h-3" />
-                    </button>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!page.title) {
+                            setContentType('title')
+                          } else {
+                            handleEditContent('title')
+                          }
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          page.title 
+                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={page.title ? "Edit Title" : "Add Title"}
+                      >
+                        <Type className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!page.description) {
+                            setContentType('description')
+                          } else {
+                            handleEditContent('description')
+                          }
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          page.description 
+                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={page.description ? "Edit Description" : "Add Description"}
+                      >
+                        <FileText className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!page.code) {
+                            setContentType('code')
+                          } else {
+                            handleEditContent('code')
+                          }
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          page.code 
+                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={page.code ? "Edit Code" : "Add Code"}
+                      >
+                        <Code2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (!page.image) {
+                            setContentType('image')
+                          } else {
+                            handleEditContent('image')
+                          }
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          page.image 
+                            ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                        title={page.image ? "Edit Image" : "Add Image"}
+                      >
+                        <Image className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -632,7 +833,12 @@ export function Presentation() {
         {/* Right Panel - Live Preview */}
         <div className="flex-1 bg-black text-white flex flex-col">
           <div className="px-6 py-4 border-b border-white/20">
-            <h3 className="font-medium">Live Preview</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium">Live Preview</h3>
+              <div className="text-xs text-white/60">
+                {currentPageIndex + 1} of {pages.length}
+              </div>
+            </div>
           </div>
           
           <div className="flex-1 p-6">
@@ -1018,6 +1224,44 @@ export function Presentation() {
         </DialogContent>
       </Dialog>
 
+      {/* Slide Templates Dialog */}
+      <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Choose a Slide Template</DialogTitle>
+            <DialogDescription>
+              Select a template to quickly create a new slide with pre-defined content.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {slideTemplates.map((template) => (
+              <div
+                key={template.id}
+                onClick={() => handleCreateFromTemplate(template)}
+                className="border rounded-lg p-4 hover:bg-muted/50 cursor-pointer transition-colors group"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Layout className="w-5 h-5 text-primary" />
+                  <h4 className="font-medium">{template.name}</h4>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {template.description}
+                </p>
+                <div className="text-xs bg-muted/50 rounded p-2 font-mono">
+                  {template.content.title && <div className="font-bold">{template.content.title}</div>}
+                  {template.content.description && <div className="text-muted-foreground">{template.content.description}</div>}
+                  {template.content.code && <div className="text-blue-600">{template.content.code.split('\n')[0]}...</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )

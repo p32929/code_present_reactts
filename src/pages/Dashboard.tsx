@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Trash2, RotateCcw, Play, FileEdit, Type } from "lucide-react"
+import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { DatabaseService, type Project } from "@/lib/database"
+import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
 
 export function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectStats, setProjectStats] = useState<{ [key: number]: { slideCount: number; lastSlide?: PresentationPage } }>({})
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [sortBy, setSortBy] = useState<'name' | 'created' | 'updated' | 'slides'>('updated')
   const [newProjectName, setNewProjectName] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -33,15 +37,53 @@ export function Dashboard() {
     loadProjects()
   }, [])
 
+  useEffect(() => {
+    filterAndSortProjects()
+  }, [projects, searchQuery, sortBy])
+
   const loadProjects = async () => {
     try {
       const allProjects = await DatabaseService.getAllProjects()
       setProjects(allProjects)
+      
+      // Load stats for each project
+      const stats: { [key: number]: { slideCount: number; lastSlide?: PresentationPage } } = {}
+      for (const project of allProjects) {
+        const pages = await DatabaseService.getProjectPages(project.id!)
+        stats[project.id!] = {
+          slideCount: pages.length,
+          lastSlide: pages[pages.length - 1]
+        }
+      }
+      setProjectStats(stats)
     } catch (error) {
       console.error('Failed to load projects:', error)
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const filterAndSortProjects = () => {
+    let filtered = projects.filter(project => 
+      project.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name)
+        case 'created':
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        case 'updated':
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        case 'slides':
+          return (projectStats[b.id!]?.slideCount || 0) - (projectStats[a.id!]?.slideCount || 0)
+        default:
+          return 0
+      }
+    })
+
+    setFilteredProjects(filtered)
   }
 
   const handleCreateProject = async () => {
@@ -80,6 +122,62 @@ export function Dashboard() {
   const handleDeleteProject = (project: Project) => {
     setDeletingProject(project)
     setIsDeleteDialogOpen(true)
+  }
+
+  const getProjectPreview = (project: Project) => {
+    const stats = projectStats[project.id!]
+    if (!stats?.lastSlide) return null
+    
+    const slide = stats.lastSlide
+    if (slide.title) return slide.title
+    if (slide.description) return slide.description
+    if (slide.code) return 'Code snippet'
+    if (slide.image) return 'Image slide'
+    return 'Empty slide'
+  }
+
+  const formatTimeAgo = (date: Date) => {
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / (1000 * 60))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
+
+  const handleExportPresentation = async (project: Project) => {
+    try {
+      const pages = await DatabaseService.getProjectPages(project.id!)
+      const exportData = {
+        name: project.name,
+        slides: pages.map(page => ({
+          title: page.title || '',
+          description: page.description || '',
+          code: page.code || '',
+          codeLanguage: page.codeLanguage || 'javascript',
+          image: page.image || ''
+        }))
+      }
+      
+      const dataStr = JSON.stringify(exportData, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${project.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export presentation:', error)
+    }
   }
 
   const handleConfirmDelete = async () => {
@@ -129,29 +227,65 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border">
-        <div className="px-6 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">CodePresent</h1>
-          
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
-            {projects.length > 0 && (
-              <button
-                onClick={handleResetAllData}
-                className="p-2 hover:bg-muted rounded-lg transition-colors text-destructive hover:text-destructive"
-                title="Reset All Data"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setIsCreateDialogOpen(true)}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
-              title="New Project"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+      <header className="border-b border-border bg-card/50">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold">CodePresent</h1>
+              <p className="text-muted-foreground text-sm">Create and deliver stunning code presentations</p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              {projects.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleResetAllData}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Reset All
+                </Button>
+              )}
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Presentation
+              </Button>
+            </div>
           </div>
+          
+          {/* Search and Filters */}
+          {projects.length > 0 && (
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Search presentations..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Filter className="w-4 h-4" />
+                <span>Sort by:</span>
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="bg-background border border-border rounded px-2 py-1 text-foreground"
+                >
+                  <option value="updated">Recently Updated</option>
+                  <option value="created">Recently Created</option>
+                  <option value="name">Name A-Z</option>
+                  <option value="slides">Most Slides</option>
+                </select>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {filteredProjects.length} of {projects.length} presentations
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -159,59 +293,52 @@ export function Dashboard() {
       <main className="px-6 py-6">
         {projects.length === 0 ? (
           <div className="text-center py-20">
-            <h2 className="text-xl font-semibold mb-2">No projects yet</h2>
-            <p className="text-muted-foreground mb-6">Create your first presentation to get started</p>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Your First Project
+            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
+              <Presentation className="w-12 h-12 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3">Welcome to CodePresent</h2>
+            <p className="text-muted-foreground mb-8 max-w-md mx-auto">Create beautiful presentations with code syntax highlighting, images, and interactive elements.</p>
+            <Button size="lg" onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-5 h-5 mr-2" />
+              Create Your First Presentation
             </Button>
           </div>
+        ) : filteredProjects.length === 0 ? (
+          <div className="text-center py-20">
+            <Search className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-xl font-semibold mb-2">No presentations found</h3>
+            <p className="text-muted-foreground">Try adjusting your search terms</p>
+          </div>
         ) : (
-          <div className="bg-card rounded-lg border">
-            <table className="w-full">
-              <thead className="border-b">
-                <tr>
-                  <th className="text-left p-4 font-medium">ID</th>
-                  <th className="text-left p-4 font-medium">Name</th>
-                  <th className="text-left p-4 font-medium">Created</th>
-                  <th className="text-left p-4 font-medium">Updated</th>
-                  <th className="text-right p-4 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr key={project.id} className="border-b hover:bg-muted/50">
-                    <td className="p-4 text-sm text-muted-foreground">#{project.id}</td>
-                    <td className="p-4 font-medium">{project.name}</td>
-                    <td className="p-4 text-sm text-muted-foreground">
-                      {project.createdAt.toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-sm text-muted-foreground">
-                      {project.updatedAt.toLocaleDateString()}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-end gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProjects.map((project) => {
+              const stats = projectStats[project.id!] || { slideCount: 0 }
+              const preview = getProjectPreview(project)
+              
+              return (
+                <div key={project.id} className="group bg-card border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+                  {/* Card Header */}
+                  <div className="p-4 pb-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold text-lg leading-tight line-clamp-2 flex-1 pr-2">
+                        {project.name}
+                      </h3>
+                      <div className="flex items-center gap-1 ml-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/play/${project.id}`)}
-                          title="Play presentation"
+                          onClick={() => handleExportPresentation(project)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Export as JSON"
                         >
-                          <Play className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/presentation/${project.id}`)}
-                          title="Edit presentation"
-                        >
-                          <FileEdit className="w-4 h-4" />
+                          <Download className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEditProject(project)}
-                          title="Edit title"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Rename"
                         >
                           <Type className="w-4 h-4" />
                         </Button>
@@ -219,16 +346,57 @@ export function Dashboard() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteProject(project)}
-                          className="text-destructive hover:text-destructive"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                          title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    
+                    {/* Preview */}
+                    <div className="text-sm text-muted-foreground mb-3 line-clamp-2 min-h-[2.5rem]">
+                      {preview || 'No content yet'}
+                    </div>
+                    
+                    {/* Stats */}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Presentation className="w-3 h-3" />
+                        <span>{stats.slideCount} slides</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{formatTimeAgo(project.updatedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Card Actions */}
+                  <div className="px-4 pb-4 flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => navigate(`/play/${project.id}`)}
+                      disabled={stats.slideCount === 0}
+                      className="flex-1"
+                    >
+                      <Play className="w-4 h-4 mr-1" />
+                      Present
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/presentation/${project.id}`)}
+                      className="flex-1"
+                    >
+                      <FileEdit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </main>
@@ -237,14 +405,14 @@ export function Dashboard() {
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Project</DialogTitle>
+            <DialogTitle>Create New Presentation</DialogTitle>
             <DialogDescription>
-              Enter a name for your new presentation project.
+              Enter a name for your new presentation. You can always change this later.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
-              placeholder="Project name"
+              placeholder="e.g., React Hooks Deep Dive, Node.js Best Practices"
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               onKeyDown={(e) => {
@@ -260,7 +428,7 @@ export function Dashboard() {
               Cancel
             </Button>
             <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>
-              Create Project
+              Create Presentation
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -270,9 +438,9 @@ export function Dashboard() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Project</DialogTitle>
+            <DialogTitle>Rename Presentation</DialogTitle>
             <DialogDescription>
-              Update the name of your project.
+              Update the name of your presentation.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -303,9 +471,9 @@ export function Dashboard() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Project</DialogTitle>
+            <DialogTitle>Delete Presentation</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deletingProject?.name}"? This action cannot be undone.
+              Are you sure you want to delete "{deletingProject?.name}"? This will permanently delete all slides and cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -313,7 +481,7 @@ export function Dashboard() {
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleConfirmDelete}>
-              Delete Project
+              Delete Presentation
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -328,7 +496,7 @@ export function Dashboard() {
               Reset All Data
             </DialogTitle>
             <DialogDescription className="text-base">
-              This will permanently delete <strong>ALL {projects.length} project{projects.length !== 1 ? 's' : ''}</strong> and data. This action cannot be undone.
+              This will permanently delete <strong>ALL {projects.length} presentation{projects.length !== 1 ? 's' : ''}</strong> and their slides. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="py-6">

@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
-import { useEffect, useState } from "react"
-import { X, ChevronLeft, ChevronRight, Settings } from "lucide-react"
+import { useEffect, useState, useRef } from "react"
+import { X, ChevronLeft, ChevronRight, Settings, Maximize, Minimize, Timer, Play as PlayIcon, Pause, RotateCcw, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -22,6 +22,14 @@ export function Play() {
   const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(6)
   const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(6)
   const [codeImageSpacing, setCodeImageSpacing] = useState(6)
+  
+  // Presentation controls
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isTimerRunning, setIsTimerRunning] = useState(false)
+  const [startTime, setStartTime] = useState<Date | null>(null)
+  const [elapsedTime, setElapsedTime] = useState(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     loadProject()
@@ -29,18 +37,68 @@ export function Play() {
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
+      // Disable default browser shortcuts in fullscreen
+      if (isFullscreen && (e.key === 'F11' || (e.key === 'f' && (e.ctrlKey || e.metaKey)))) {
+        e.preventDefault()
+      }
+      
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         handlePrevPage()
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+        e.preventDefault()
         handleNextPage()
       } else if (e.key === 'Escape') {
-        navigate(`/presentation/${id}`)
+        if (isFullscreen) {
+          exitFullscreen()
+        } else {
+          navigate(`/presentation/${id}`)
+        }
+      } else if (e.key === 'f' || e.key === 'F11') {
+        e.preventDefault()
+        toggleFullscreen()
+      } else if (e.key === 't') {
+        toggleTimer()
+      } else if (e.key === 'r') {
+        resetTimer()
+      } else if (e.key === 'Home') {
+        setCurrentPageIndex(0)
+      } else if (e.key === 'End') {
+        setCurrentPageIndex(pages.length - 1)
       }
     }
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentPageIndex, pages.length, id, navigate])
+  }, [currentPageIndex, pages.length, id, navigate, isFullscreen])
+  
+  // Timer effect
+  useEffect(() => {
+    if (isTimerRunning && startTime) {
+      timerRef.current = setInterval(() => {
+        setElapsedTime(Date.now() - startTime.getTime())
+      }, 1000)
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [isTimerRunning, startTime])
+  
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   const loadProject = async () => {
     if (!id || isNaN(Number(id))) {
@@ -116,6 +174,60 @@ export function Play() {
     )
     return spacingMap[closest] || 'mt-8'
   }
+  
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        await containerRef.current?.requestFullscreen()
+      } catch (error) {
+        console.warn('Fullscreen not supported:', error)
+      }
+    } else {
+      try {
+        await document.exitFullscreen()
+      } catch (error) {
+        console.warn('Exit fullscreen failed:', error)
+      }
+    }
+  }
+  
+  const exitFullscreen = async () => {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen()
+      } catch (error) {
+        console.warn('Exit fullscreen failed:', error)
+      }
+    }
+  }
+  
+  const toggleTimer = () => {
+    if (!isTimerRunning) {
+      setStartTime(new Date())
+      setElapsedTime(0)
+      setIsTimerRunning(true)
+    } else {
+      setIsTimerRunning(false)
+    }
+  }
+  
+  const resetTimer = () => {
+    setIsTimerRunning(false)
+    setStartTime(null)
+    setElapsedTime(0)
+  }
+  
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }
+  
+  const getProgressPercentage = () => {
+    if (pages.length === 0) return 0
+    return ((currentPageIndex + 1) / pages.length) * 100
+  }
 
   if (isLoading) {
     return (
@@ -147,14 +259,34 @@ export function Play() {
   const currentPage = getCurrentPage()
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col relative">
+    <div ref={containerRef} className="min-h-screen bg-black text-white flex flex-col relative">
+      {/* Progress Bar */}
+      <div className="absolute top-0 left-0 right-0 z-20">
+        <div className="h-1 bg-white/20">
+          <div 
+            className="h-full bg-primary transition-all duration-300 ease-out"
+            style={{ width: `${getProgressPercentage()}%` }}
+          />
+        </div>
+      </div>
+      
       {/* Top Controls */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon"
+          onClick={() => navigate("/")}
+          className="text-white hover:bg-white/20 transition-colors"
+          title="Home"
+        >
+          <Home className="w-5 h-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => navigate(`/presentation/${id}`)}
           className="text-white hover:bg-white/20 transition-colors"
+          title="Exit Presentation"
         >
           <X className="w-6 h-6" />
         </Button>
@@ -163,22 +295,59 @@ export function Play() {
           size="icon"
           onClick={() => setIsSettingsPanelOpen(!isSettingsPanelOpen)}
           className="text-white hover:bg-white/20 transition-colors"
+          title="Settings"
         >
           <Settings className="w-5 h-5" />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleFullscreen}
+          className="text-white hover:bg-white/20 transition-colors"
+          title={isFullscreen ? "Exit Fullscreen (F11)" : "Fullscreen (F11)"}
+        >
+          {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+        </Button>
+      </div>
+      
+      {/* Timer Controls */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <div className="bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center gap-2">
+          <div className="text-lg font-mono font-bold">
+            {formatTime(elapsedTime)}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleTimer}
+            className="text-white hover:bg-white/20 transition-colors p-1"
+            title={isTimerRunning ? "Pause Timer (T)" : "Start Timer (T)"}
+          >
+            {isTimerRunning ? <Pause className="w-4 h-4" /> : <PlayIcon className="w-4 h-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetTimer}
+            className="text-white hover:bg-white/20 transition-colors p-1"
+            title="Reset Timer (R)"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Presentation Content */}
-      <div className="flex-1 p-6">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 p-6 pt-8">
+        <div className="max-w-6xl mx-auto">
           {currentPage?.title && (
-            <h1 className={`text-4xl md:text-5xl font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)}`}>
+            <h1 className={`text-4xl md:text-6xl lg:text-7xl font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)}`}>
               {currentPage.title}
             </h1>
           )}
           
           {currentPage?.description && (
-            <p className={`text-xl text-center text-white/90 leading-relaxed max-w-4xl mx-auto capitalize ${getSpacingClass(descriptionTitleSpacing)}`}>
+            <p className={`text-xl md:text-2xl text-center text-white/90 leading-relaxed max-w-5xl mx-auto capitalize ${getSpacingClass(descriptionTitleSpacing)}`}>
               {currentPage.description}
             </p>
           )}
@@ -188,21 +357,21 @@ export function Play() {
               <img 
                 src={currentPage.image} 
                 alt="Slide content" 
-                className="max-w-full max-h-96 object-contain rounded-lg"
+                className="max-w-full max-h-[60vh] object-contain rounded-xl shadow-2xl"
               />
             </div>
           )}
           
           {currentPage?.code && (
-            <div className={`rounded-xl overflow-hidden shadow-2xl ${getSpacingClass(codeImageSpacing)}`}>
+            <div className={`rounded-xl overflow-hidden shadow-2xl border border-white/10 ${getSpacingClass(codeImageSpacing)}`}>
               <SyntaxHighlighter
                 language={currentPage.codeLanguage || 'javascript'}
                 style={vscDarkPlus}
                 customStyle={{
-                  padding: '2rem',
-                  fontSize: '1.1rem',
-                  lineHeight: '1.6',
-                  background: 'rgba(30, 30, 30, 0.95)',
+                  padding: '2.5rem',
+                  fontSize: '1.2rem',
+                  lineHeight: '1.7',
+                  background: 'rgba(15, 23, 42, 0.98)',
                   margin: 0,
                 }}
                 showLineNumbers={true}
@@ -213,9 +382,13 @@ export function Play() {
           )}
 
           {!currentPage?.title && !currentPage?.description && !currentPage?.code && !currentPage?.image && (
-            <div className="text-center text-white/60">
+            <div className="text-center text-white/60 py-20">
+              <div className="w-24 h-24 mx-auto mb-6 rounded-full border-2 border-dashed border-white/30 flex items-center justify-center">
+                <Timer className="w-12 h-12" />
+              </div>
               <h2 className="text-4xl font-bold mb-4">Empty Slide</h2>
               <p className="text-xl">No content on this slide</p>
+              <p className="text-sm text-white/40 mt-2">Press → to continue or Escape to exit</p>
             </div>
           )}
         </div>
@@ -223,50 +396,63 @@ export function Play() {
 
       {/* Navigation Controls */}
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePrevPage}
-            disabled={currentPageIndex === 0}
-            className="text-white hover:bg-white/20 disabled:opacity-30"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
+        <div className="bg-black/60 backdrop-blur-sm rounded-xl px-6 py-4">
+          <div className="flex items-center gap-6">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handlePrevPage}
+              disabled={currentPageIndex === 0}
+              className="text-white hover:bg-white/20 disabled:opacity-30"
+              title="Previous (← or ↑)"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
 
-          <div className="flex items-center gap-2">
-            {pages.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentPageIndex(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  index === currentPageIndex
-                    ? 'bg-white scale-125'
-                    : index < currentPageIndex
-                    ? 'bg-white/60'
-                    : 'bg-white/30'
-                }`}
-              />
-            ))}
+            <div className="flex items-center gap-3">
+              <div className="text-sm text-white/70 font-medium">
+                {currentPageIndex + 1} / {pages.length}
+              </div>
+              <div className="flex items-center gap-1">
+                {pages.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentPageIndex(index)}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      index === currentPageIndex
+                        ? 'bg-primary w-8'
+                        : index < currentPageIndex
+                        ? 'bg-white/60 w-2'
+                        : 'bg-white/30 w-2'
+                    }`}
+                    title={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleNextPage}
+              disabled={currentPageIndex === pages.length - 1}
+              className="text-white hover:bg-white/20 disabled:opacity-30"
+              title="Next (→, ↓, or Space)"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </Button>
           </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleNextPage}
-            disabled={currentPageIndex === pages.length - 1}
-            className="text-white hover:bg-white/20 disabled:opacity-30"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </Button>
         </div>
       </div>
 
       {/* Settings Panel */}
       {isSettingsPanelOpen && (
-        <div className="absolute top-4 right-4 z-10 bg-black/80 backdrop-blur-sm border border-white/20 rounded-lg p-4 w-80">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-medium text-white">Spacing Settings</h4>
+        <div className="absolute top-4 right-4 z-10 bg-black/90 backdrop-blur-sm border border-white/20 rounded-xl p-6 w-80">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h4 className="font-medium text-white">Presentation Settings</h4>
+              <p className="text-xs text-white/60 mt-1">Adjust spacing and layout</p>
+            </div>
             <button
               onClick={() => setIsSettingsPanelOpen(false)}
               className="p-1 hover:bg-white/10 rounded transition-colors text-white/70 hover:text-white"
@@ -274,9 +460,13 @@ export function Play() {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-white">Title Top: {titleTopSpacing}</label>
+          
+          <div className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-white">Title Top Spacing</label>
+                <span className="text-xs text-white/60">{titleTopSpacing}</span>
+              </div>
               <input
                 type="range"
                 value={titleTopSpacing}
@@ -284,11 +474,15 @@ export function Play() {
                 max={24}
                 min={0}
                 step={1}
-                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-white">Description: {descriptionTitleSpacing}</label>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-white">Description Spacing</label>
+                <span className="text-xs text-white/60">{descriptionTitleSpacing}</span>
+              </div>
               <input
                 type="range"
                 value={descriptionTitleSpacing}
@@ -296,11 +490,15 @@ export function Play() {
                 max={24}
                 min={0}
                 step={1}
-                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-white">Image: {imageDescriptionSpacing}</label>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-white">Image Spacing</label>
+                <span className="text-xs text-white/60">{imageDescriptionSpacing}</span>
+              </div>
               <input
                 type="range"
                 value={imageDescriptionSpacing}
@@ -308,11 +506,15 @@ export function Play() {
                 max={24}
                 min={0}
                 step={1}
-                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-white">Code: {codeImageSpacing}</label>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-white">Code Spacing</label>
+                <span className="text-xs text-white/60">{codeImageSpacing}</span>
+              </div>
               <input
                 type="range"
                 value={codeImageSpacing}
@@ -320,8 +522,30 @@ export function Play() {
                 max={24}
                 min={0}
                 step={1}
-                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
               />
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-4 border-t border-white/20">
+            <h5 className="text-sm font-medium text-white mb-3">Keyboard Shortcuts</h5>
+            <div className="text-xs text-white/60 space-y-1">
+              <div className="flex justify-between">
+                <span>Navigate:</span>
+                <span>← → ↑ ↓ Space</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Fullscreen:</span>
+                <span>F or F11</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Timer:</span>
+                <span>T (toggle) R (reset)</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Exit:</span>
+                <span>Escape</span>
+              </div>
             </div>
           </div>
         </div>
