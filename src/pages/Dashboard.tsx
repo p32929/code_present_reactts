@@ -130,11 +130,8 @@ export function Dashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">My Presentations</h1>
-            <p className="text-sm text-muted-foreground">Manage your presentation projects</p>
-          </div>
+        <div className="px-6 py-3 flex items-center justify-between">
+          <h1 className="text-lg font-semibold">CodePresent</h1>
           
           <div className="flex items-center gap-2">
             <ThemeToggle />

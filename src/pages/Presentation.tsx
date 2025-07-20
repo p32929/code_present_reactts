@@ -317,7 +317,7 @@ export function Presentation() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
         <header className="border-b border-border">
-          <div className="px-6 py-4 flex items-center gap-3">
+          <div className="px-6 py-3 flex items-center gap-3">
             <Button 
               variant="ghost" 
               size="sm"
@@ -467,7 +467,7 @@ export function Presentation() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border">
-        <div className="px-6 py-4 flex items-center justify-between">
+        <div className="px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button 
               variant="ghost" 
@@ -476,12 +476,7 @@ export function Presentation() {
             >
               <ArrowLeft className="w-4 h-4" />
             </Button>
-            <div>
-              <h1 className="text-lg font-semibold">{project?.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                Slide {currentPageIndex + 1} of {pages.length}
-              </p>
-            </div>
+            <h1 className="text-lg font-semibold">{project?.name}</h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -489,7 +484,7 @@ export function Presentation() {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-77px)]">
+      <div className="flex h-[calc(100vh-69px)]">
         {/* Left Panel - Slides */}
         <div className="w-80 border-r bg-muted/30 overflow-y-auto">
           <div className="p-4">
@@ -512,58 +507,49 @@ export function Presentation() {
                 >
                   <Play className="w-4 h-4" />
                 </button>
+                <button
+                  onClick={() => getCurrentPage() && handleClonePage(getCurrentPage()!.id!)}
+                  disabled={!getCurrentPage()}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Clone Slide"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (getCurrentPage()) {
+                      setPageToDelete(getCurrentPage()!)
+                      setIsDeletePageDialogOpen(true)
+                    }
+                  }}
+                  disabled={!getCurrentPage()}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-destructive hover:text-destructive"
+                  title="Delete Slide"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
             {/* Navigation */}
-            <div className="flex items-center justify-between p-2 bg-background rounded-lg border mb-4">
-              <Button
-                variant="ghost"
-                size="sm"
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <button
                 onClick={handlePrevPage}
                 disabled={currentPageIndex === 0}
+                className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-30"
               >
                 <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span className="text-sm font-medium">
-                {currentPageIndex + 1} / {pages.length}
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {currentPageIndex + 1}/{pages.length}
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={handleNextPage}
                 disabled={currentPageIndex === pages.length - 1}
+                className="p-1 hover:bg-muted rounded transition-colors disabled:opacity-30"
               >
                 <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Actions */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => getCurrentPage() && handleClonePage(getCurrentPage()!.id!)}
-                disabled={!getCurrentPage()}
-              >
-                <Copy className="w-3 h-3 mr-1" />
-                Clone
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (getCurrentPage()) {
-                    setPageToDelete(getCurrentPage()!)
-                    setIsDeletePageDialogOpen(true)
-                  }
-                }}
-                disabled={!getCurrentPage()}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Delete
-              </Button>
+              </button>
             </div>
             
             {/* Slides List */}
@@ -571,112 +557,106 @@ export function Presentation() {
               {pages.map((page, index) => (
                 <div
                   key={page.id}
-                  onClick={() => setCurrentPageIndex(index)}
-                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                  className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
                     index === currentPageIndex
                       ? 'bg-primary/10 border border-primary/20'
                       : 'bg-background/50 hover:bg-muted/50'
                   }`}
                 >
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
-                    index === currentPageIndex
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {page.pageNumber}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">
-                      {page.title || `Slide ${page.pageNumber}`}
+                  <div 
+                    onClick={() => setCurrentPageIndex(index)}
+                    className="flex items-center gap-2 flex-1 cursor-pointer"
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                      index === currentPageIndex
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {page.pageNumber}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {page.title || `Slide ${page.pageNumber}`}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    {page.title && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" title="Title"></div>}
-                    {page.description && <div className="w-1.5 h-1.5 bg-green-500 rounded-full" title="Description"></div>}
-                    {page.code && <div className="w-1.5 h-1.5 bg-orange-500 rounded-full" title="Code"></div>}
-                    {page.image && <div className="w-1.5 h-1.5 bg-purple-500 rounded-full" title="Image"></div>}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!page.title) {
+                          setContentType('title')
+                        } else {
+                          handleEditContent('title')
+                        }
+                      }}
+                      className={`p-1 rounded transition-colors ${
+                        page.title 
+                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                          : 'hover:bg-muted/50'
+                      }`}
+                      title={page.title ? "Edit Title" : "Add Title"}
+                    >
+                      <Type className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!page.description) {
+                          setContentType('description')
+                        } else {
+                          handleEditContent('description')
+                        }
+                      }}
+                      className={`p-1 rounded transition-colors ${
+                        page.description 
+                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                          : 'hover:bg-muted/50'
+                      }`}
+                      title={page.description ? "Edit Description" : "Add Description"}
+                    >
+                      <FileText className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!page.code) {
+                          setContentType('code')
+                        } else {
+                          handleEditContent('code')
+                        }
+                      }}
+                      className={`p-1 rounded transition-colors ${
+                        page.code 
+                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                          : 'hover:bg-muted/50'
+                      }`}
+                      title={page.code ? "Edit Code" : "Add Code"}
+                    >
+                      <Code2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!page.image) {
+                          setContentType('image')
+                        } else {
+                          handleEditContent('image')
+                        }
+                      }}
+                      className={`p-1 rounded transition-colors ${
+                        page.image 
+                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                          : 'hover:bg-muted/50'
+                      }`}
+                      title={page.image ? "Edit Image" : "Add Image"}
+                    >
+                      <Image className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Content Controls */}
-            {getCurrentPage() && (
-              <div className="flex items-center justify-center gap-1 mt-2">
-                <button
-                  onClick={() => {
-                    const currentPage = getCurrentPage()!
-                    if (!currentPage.title) {
-                      setContentType('title')
-                    } else {
-                      handleEditContent('title')
-                    }
-                  }}
-                  className={`p-2 rounded-lg transition-colors ${
-                    getCurrentPage()?.title 
-                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                      : 'hover:bg-muted'
-                  }`}
-                  title={getCurrentPage()?.title ? "Edit Title" : "Add Title"}
-                >
-                  <Type className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    const currentPage = getCurrentPage()!
-                    if (!currentPage.description) {
-                      setContentType('description')
-                    } else {
-                      handleEditContent('description')
-                    }
-                  }}
-                  className={`p-2 rounded-lg transition-colors ${
-                    getCurrentPage()?.description 
-                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                      : 'hover:bg-muted'
-                  }`}
-                  title={getCurrentPage()?.description ? "Edit Description" : "Add Description"}
-                >
-                  <FileText className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    const currentPage = getCurrentPage()!
-                    if (!currentPage.code) {
-                      setContentType('code')
-                    } else {
-                      handleEditContent('code')
-                    }
-                  }}
-                  className={`p-2 rounded-lg transition-colors ${
-                    getCurrentPage()?.code 
-                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                      : 'hover:bg-muted'
-                  }`}
-                  title={getCurrentPage()?.code ? "Edit Code" : "Add Code"}
-                >
-                  <Code2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    const currentPage = getCurrentPage()!
-                    if (!currentPage.image) {
-                      setContentType('image')
-                    } else {
-                      handleEditContent('image')
-                    }
-                  }}
-                  className={`p-2 rounded-lg transition-colors ${
-                    getCurrentPage()?.image 
-                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                      : 'hover:bg-muted'
-                  }`}
-                  title={getCurrentPage()?.image ? "Edit Image" : "Add Image"}
-                >
-                  <Image className="w-4 h-4" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
