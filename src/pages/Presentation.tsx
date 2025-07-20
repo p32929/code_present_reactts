@@ -731,25 +731,27 @@ export function Presentation() {
                         onClick={() => !isMultiSelectMode && setCurrentPageIndex(index)}
                         className={`flex-1 min-w-0 ${!isMultiSelectMode ? 'cursor-pointer' : ''}`}
                       >
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        <div className="flex items-start gap-3 mb-2">
+                          <div className={`w-5 h-5 rounded flex items-center justify-center text-xs font-medium mt-0.5 ${
                             index === currentPageIndex
                               ? 'bg-primary text-primary-foreground'
                               : 'bg-muted text-muted-foreground'
                           }`}>
                             {page.pageNumber}
                           </div>
-                          <div className="text-sm font-medium truncate capitalize">
-                            {page.title || `Slide ${page.pageNumber}`}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate capitalize">
+                              {page.title || `Slide ${page.pageNumber}`}
+                            </div>
+                            {(page.description || page.code || page.image) && (
+                              <div className="text-xs text-muted-foreground truncate mt-1">
+                                {page.description ? page.description.slice(0, 35) + '...' : 
+                                 page.code ? `Code: ${page.codeLanguage}` :
+                                 page.image ? 'Image slide' : ''}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        {(page.description || page.code || page.image) && (
-                          <div className="text-xs text-muted-foreground truncate ml-8">
-                            {page.description ? page.description.slice(0, 35) + '...' : 
-                             page.code ? `Code: ${page.codeLanguage}` :
-                             page.image ? 'Image slide' : ''}
-                          </div>
-                        )}
                       </div>
                       
                       {/* Content type indicators and edit buttons */}
