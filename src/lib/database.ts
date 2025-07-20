@@ -180,6 +180,13 @@ export class DatabaseService {
   static async deleteAllProjectPages(projectId: number): Promise<void> {
     await db.pages.where('projectId').equals(projectId).delete()
   }
+
+  static async reorderPages(_projectId: number, pageIds: number[]): Promise<void> {
+    // Update page numbers based on the new order
+    for (let i = 0; i < pageIds.length; i++) {
+      await db.pages.update(pageIds[i], { pageNumber: i + 1 })
+    }
+  }
 }
 
 export { db }

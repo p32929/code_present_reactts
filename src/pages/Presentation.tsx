@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -74,6 +74,10 @@ export function Presentation() {
   const [tempImage, setTempImage] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Drag and drop states for slide reordering
+  const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null)
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
 
   useEffect(() => {
     loadProject()
@@ -245,6 +249,67 @@ export function Presentation() {
   const exitMultiSelectMode = () => {
     setIsMultiSelectMode(false)
     setSelectedPageIds(new Set())
+  }
+
+  // Drag and drop handlers for slide reordering
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedSlideIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', '')
+  }
+
+  const handleSlideDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropTargetIndex(index)
+  }
+
+  const handleSlideDragEnd = () => {
+    setDraggedSlideIndex(null)
+    setDropTargetIndex(null)
+  }
+
+  const handleSlideDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    
+    if (draggedSlideIndex === null || draggedSlideIndex === dropIndex || !project) {
+      setDraggedSlideIndex(null)
+      setDropTargetIndex(null)
+      return
+    }
+
+    try {
+      // Create new pages array with reordered items
+      const newPages = [...pages]
+      const draggedPage = newPages[draggedSlideIndex]
+      
+      // Remove dragged item and insert at new position
+      newPages.splice(draggedSlideIndex, 1)
+      newPages.splice(dropIndex, 0, draggedPage)
+      
+      // Update page numbers and database
+      const pageIds = newPages.map(page => page.id!)
+      await DatabaseService.reorderPages(project.id!, pageIds)
+      
+      // Reload pages to get updated data
+      await loadPages(project.id!)
+      
+      // Update current page index to follow the moved slide
+      if (draggedSlideIndex === currentPageIndex) {
+        setCurrentPageIndex(dropIndex)
+      } else if (draggedSlideIndex < currentPageIndex && dropIndex >= currentPageIndex) {
+        setCurrentPageIndex(currentPageIndex - 1)
+      } else if (draggedSlideIndex > currentPageIndex && dropIndex <= currentPageIndex) {
+        setCurrentPageIndex(currentPageIndex + 1)
+      }
+      
+      triggerAutoSave()
+    } catch (error) {
+      console.error('Failed to reorder slides:', error)
+    } finally {
+      setDraggedSlideIndex(null)
+      setDropTargetIndex(null)
+    }
   }
 
 
@@ -582,14 +647,31 @@ export function Presentation() {
               {pages.map((page, index) => (
                 <div
                   key={page.id}
-                  className={`group rounded-lg border transition-all ${
+                  draggable={!isMultiSelectMode}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleSlideDragOver(e, index)}
+                  onDragEnd={handleSlideDragEnd}
+                  onDrop={(e) => handleSlideDrop(e, index)}
+                  className={`group rounded-lg border transition-all relative ${
                     index === currentPageIndex
                       ? 'bg-primary/10 border-primary/20 shadow-sm'
                       : 'bg-card border-border hover:bg-muted/30 hover:border-primary/30'
-                  } ${selectedPageIds.has(page.id!) ? 'ring-2 ring-primary/30' : ''}`}
+                  } ${selectedPageIds.has(page.id!) ? 'ring-2 ring-primary/30' : ''} ${
+                    draggedSlideIndex === index ? 'opacity-50 scale-95' : ''
+                  } ${
+                    dropTargetIndex === index && draggedSlideIndex !== null && draggedSlideIndex !== index
+                      ? 'border-primary border-2 bg-primary/5' : ''
+                  } ${!isMultiSelectMode ? 'cursor-move' : ''} ${!isMultiSelectMode ? 'hover:shadow-lg' : ''}`}
                 >
                   <div className="p-3">
                     <div className="flex items-start gap-3">
+                      {/* Drag handle - only show when not in multi-select mode */}
+                      {!isMultiSelectMode && (
+                        <div className="pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <GripVertical className="w-4 h-4 text-muted-foreground cursor-move" />
+                        </div>
+                      )}
+                      
                       {isMultiSelectMode && (
                         <div className="pt-1">
                           <button
