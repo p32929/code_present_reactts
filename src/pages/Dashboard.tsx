@@ -133,22 +133,24 @@ export function Dashboard() {
         <div className="px-6 py-3 flex items-center justify-between">
           <h1 className="text-lg font-semibold">CodePresent</h1>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <ThemeToggle />
             {projects.length > 0 && (
-              <Button
-                variant="outline"
+              <button
                 onClick={handleResetAllData}
-                className="text-destructive hover:text-destructive"
+                className="p-2 hover:bg-muted rounded-lg transition-colors text-destructive hover:text-destructive"
+                title="Reset All Data"
               >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reset All
-              </Button>
+                <RotateCcw className="w-4 h-4" />
+              </button>
             )}
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
+            <button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+              title="New Project"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>

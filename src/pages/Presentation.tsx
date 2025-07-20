@@ -593,7 +593,7 @@ export function Presentation() {
                       className={`p-1 rounded transition-colors ${
                         page.title 
                           ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted/50'
+                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                       title={page.title ? "Edit Title" : "Add Title"}
                     >
@@ -611,7 +611,7 @@ export function Presentation() {
                       className={`p-1 rounded transition-colors ${
                         page.description 
                           ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted/50'
+                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                       title={page.description ? "Edit Description" : "Add Description"}
                     >
@@ -629,7 +629,7 @@ export function Presentation() {
                       className={`p-1 rounded transition-colors ${
                         page.code 
                           ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted/50'
+                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                       title={page.code ? "Edit Code" : "Add Code"}
                     >
@@ -647,7 +647,7 @@ export function Presentation() {
                       className={`p-1 rounded transition-colors ${
                         page.image 
                           ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                          : 'hover:bg-muted/50'
+                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                       title={page.image ? "Edit Image" : "Add Image"}
                     >
