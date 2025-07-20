@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom"
-import { useEffect, useState } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image } from "lucide-react"
+import { useEffect, useState, useRef } from "react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -68,6 +68,15 @@ export function Presentation() {
   const [tempCode, setTempCode] = useState("")
   const [tempCodeLanguage, setTempCodeLanguage] = useState("javascript")
   const [tempImage, setTempImage] = useState("")
+  const [isDragOver, setIsDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Settings states
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
+  const [titleTopSpacing, setTitleTopSpacing] = useState(8) // Top margin for title
+  const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(6) // Space between title and description
+  const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(6) // Space between description and image
+  const [codeImageSpacing, setCodeImageSpacing] = useState(6) // Space between image and code
 
   useEffect(() => {
     loadProject()
@@ -266,6 +275,7 @@ export function Presentation() {
       setTempDescription("")
       setTempCode("")
       setTempImage("")
+      setIsDragOver(false)
       setContentType(null)
       setIsAddContentDialogOpen(false)
     } catch (error) {
@@ -296,6 +306,66 @@ export function Presentation() {
     } catch (error) {
       console.error('Failed to delete content:', error)
     }
+  }
+
+  const handleImageFile = (file: File) => {
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        setTempImage(event.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    
+    const files = Array.from(e.dataTransfer.files)
+    const imageFile = files.find(file => file.type.startsWith('image/'))
+    
+    if (imageFile) {
+      handleImageFile(imageFile)
+    }
+  }
+
+  const getSpacingClass = (spacingValue: number) => {
+    const spacingMap: { [key: number]: string } = {
+      0: 'mt-0',
+      1: 'mt-1',
+      2: 'mt-2', 
+      3: 'mt-3',
+      4: 'mt-4',
+      5: 'mt-5',
+      6: 'mt-6',
+      7: 'mt-7',
+      8: 'mt-8',
+      9: 'mt-9',
+      10: 'mt-10',
+      11: 'mt-11',
+      12: 'mt-12',
+      14: 'mt-14',
+      16: 'mt-16',
+      20: 'mt-20',
+      24: 'mt-24'
+    }
+    // Find the closest available spacing value
+    const availableValues = Object.keys(spacingMap).map(Number).sort((a, b) => a - b)
+    const closest = availableValues.reduce((prev, curr) => 
+      Math.abs(curr - spacingValue) < Math.abs(prev - spacingValue) ? curr : prev
+    )
+    return spacingMap[closest] || 'mt-8'
   }
 
 
@@ -364,21 +434,21 @@ export function Presentation() {
 
         {/* Presentation Content */}
         <div className="flex-1 p-6">
-          <div className="max-w-5xl mx-auto space-y-8">
+          <div className="max-w-5xl mx-auto">
             {currentPage?.title && (
-              <h1 className="text-4xl md:text-5xl font-bold text-center text-white leading-tight">
+              <h1 className={`text-4xl md:text-5xl font-bold text-center text-white leading-tight capitalize ${getSpacingClass(titleTopSpacing)}`}>
                 {currentPage.title}
               </h1>
             )}
             
             {currentPage?.description && (
-              <p className="text-xl text-center text-white/90 leading-relaxed max-w-4xl mx-auto">
+              <p className={`text-xl text-center text-white/90 leading-relaxed max-w-4xl mx-auto capitalize ${getSpacingClass(descriptionTitleSpacing)}`}>
                 {currentPage.description}
               </p>
             )}
 
             {currentPage?.image && (
-              <div className="flex justify-center">
+              <div className={`flex justify-center ${getSpacingClass(imageDescriptionSpacing)}`}>
                 <img 
                   src={currentPage.image} 
                   alt="Slide content" 
@@ -388,7 +458,7 @@ export function Presentation() {
             )}
             
             {currentPage?.code && (
-              <div className="rounded-xl overflow-hidden shadow-2xl">
+              <div className={`rounded-xl overflow-hidden shadow-2xl ${getSpacingClass(codeImageSpacing)}`}>
                 <SyntaxHighlighter
                   language={currentPage.codeLanguage || 'javascript'}
                   style={vscDarkPlus}
@@ -493,6 +563,13 @@ export function Presentation() {
               <h2 className="font-semibold">Slides</h2>
               <div className="flex items-center gap-1">
                 <button
+                  onClick={() => setIsSettingsDialogOpen(true)}
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
+                  title="Presentation Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                <button
                   onClick={handleAddPage}
                   className="p-2 hover:bg-muted rounded-lg transition-colors"
                   title="Add Slide"
@@ -575,7 +652,7 @@ export function Presentation() {
                       {page.pageNumber}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">
+                      <div className="text-sm font-medium truncate capitalize">
                         {page.title || `Slide ${page.pageNumber}`}
                       </div>
                     </div>
@@ -667,11 +744,11 @@ export function Presentation() {
           </div>
           
           <div className="flex-1 p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto">
               {currentPage?.title && (
-                <div className="group relative">
+                <div className={`group relative ${getSpacingClass(titleTopSpacing)}`}>
                   <h1 
-                    className="text-3xl md:text-4xl font-bold text-center leading-tight cursor-pointer hover:text-white/80 transition-colors"
+                    className="text-3xl md:text-4xl font-bold text-center leading-tight cursor-pointer hover:text-white/80 transition-colors capitalize"
                     onClick={() => handleEditContent('title')}
                   >
                     {currentPage.title}
@@ -691,9 +768,9 @@ export function Presentation() {
               )}
               
               {currentPage?.description && (
-                <div className="group relative">
+                <div className={`group relative ${getSpacingClass(descriptionTitleSpacing)}`}>
                   <p 
-                    className="text-lg text-center text-white/90 leading-relaxed max-w-3xl mx-auto cursor-pointer hover:text-white transition-colors"
+                    className="text-lg text-center text-white/90 leading-relaxed max-w-3xl mx-auto cursor-pointer hover:text-white transition-colors capitalize"
                     onClick={() => handleEditContent('description')}
                   >
                     {currentPage.description}
@@ -713,7 +790,7 @@ export function Presentation() {
               )}
 
               {currentPage?.image && (
-                <div className="group relative flex justify-center">
+                <div className={`group relative flex justify-center ${getSpacingClass(imageDescriptionSpacing)}`}>
                   <img 
                     src={currentPage.image} 
                     alt="Slide content" 
@@ -735,7 +812,7 @@ export function Presentation() {
               )}
               
               {currentPage?.code && (
-                <div className="group relative">
+                <div className={`group relative ${getSpacingClass(codeImageSpacing)}`}>
                   <div 
                     className="rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-white/20 transition-all"
                     onClick={() => handleEditContent('code')}
@@ -835,7 +912,19 @@ export function Presentation() {
       </Dialog>
 
       {/* Content Edit Dialog */}
-      <Dialog open={contentType !== null} onOpenChange={(open) => !open && setContentType(null)}>
+      <Dialog open={contentType !== null} onOpenChange={(open) => {
+        if (!open) {
+          setContentType(null)
+          setTempTitle("")
+          setTempDescription("")
+          setTempCode("")
+          setTempImage("")
+          setIsDragOver(false)
+          if (fileInputRef.current) {
+            fileInputRef.current.value = ""
+          }
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -888,12 +977,80 @@ export function Presentation() {
               </div>
             )}
             {contentType === 'image' && (
-              <Input
-                placeholder="Enter image URL..."
-                value={tempImage}
-                onChange={(e) => setTempImage(e.target.value)}
-                autoFocus
-              />
+              <div className="space-y-4">
+                {!tempImage ? (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                      isDragOver
+                        ? 'border-primary bg-primary/5'
+                        : 'border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/20'
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        isDragOver ? 'bg-primary/20' : 'bg-muted'
+                      }`}>
+                        <Image className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {isDragOver ? 'Drop image here' : 'Upload an image'}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Drag and drop or click to browse
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="border rounded-lg p-4 bg-muted/20">
+                      <img 
+                        src={tempImage} 
+                        alt="Preview" 
+                        className="max-w-full max-h-40 object-contain mx-auto rounded"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setTempImage("")
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = ""
+                          }
+                        }}
+                      >
+                        Remove
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        Change Image
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      handleImageFile(file)
+                    }
+                  }}
+                  className="hidden"
+                />
+              </div>
             )}
           </div>
           <DialogFooter>
@@ -964,6 +1121,47 @@ export function Presentation() {
             </Button>
             <Button variant="destructive" onClick={handleBulkDeletePages}>
               Delete {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? 's' : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Presentation Settings</DialogTitle>
+            <DialogDescription>
+              Adjust settings that apply to all slides in this presentation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <label className="text-sm font-medium">Title Top Spacing</label>
+              <div className="space-y-3">
+                <input
+                  type="range"
+                  value={titleTopSpacing}
+                  onChange={(e) => setTitleTopSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
+                />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>No spacing</span>
+                  <span className="font-medium">Current: {titleTopSpacing}</span>
+                  <span>Max spacing</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Controls the vertical spacing between title and other content elements.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSettingsDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
