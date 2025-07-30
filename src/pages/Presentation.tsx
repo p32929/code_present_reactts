@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -61,7 +61,7 @@ export function Presentation() {
 
   // Content dialog states
   const [isAddContentDialogOpen, setIsAddContentDialogOpen] = useState(false)
-  const [contentType, setContentType] = useState<'title' | 'description' | 'code' | 'image' | null>(null)
+  const [contentType, setContentType] = useState<'title' | 'description' | 'subtitle' | 'code' | 'image' | null>(null)
   
   // Auto-save states
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'pending'>('saved')
@@ -69,6 +69,7 @@ export function Presentation() {
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [tempTitle, setTempTitle] = useState("")
   const [tempDescription, setTempDescription] = useState("")
+  const [tempSubtitle, setTempSubtitle] = useState("")
   const [tempCode, setTempCode] = useState("")
   const [tempCodeLanguage, setTempCodeLanguage] = useState("javascript")
   const [tempImage, setTempImage] = useState("")
@@ -333,7 +334,7 @@ export function Presentation() {
     return pages[currentPageIndex] || null
   }
 
-  const handleEditContent = (type: 'title' | 'description' | 'code' | 'image') => {
+  const handleEditContent = (type: 'title' | 'description' | 'subtitle' | 'code' | 'image') => {
     const currentPage = getCurrentPage()
     if (!currentPage) return
 
@@ -342,6 +343,8 @@ export function Presentation() {
       setTempTitle(currentPage.title || "")
     } else if (type === 'description') {
       setTempDescription(currentPage.description || "")
+    } else if (type === 'subtitle') {
+      setTempSubtitle(currentPage.subtitle || "")
     } else if (type === 'code') {
       setTempCode(currentPage.code || "")
       setTempCodeLanguage(currentPage.codeLanguage || "javascript")
@@ -363,6 +366,8 @@ export function Presentation() {
         updates.title = tempTitle
       } else if (contentType === 'description') {
         updates.description = tempDescription
+      } else if (contentType === 'subtitle') {
+        updates.subtitle = tempSubtitle
       } else if (contentType === 'code') {
         updates.code = tempCode
         updates.codeLanguage = tempCodeLanguage
@@ -377,6 +382,7 @@ export function Presentation() {
       // Reset form
       setTempTitle("")
       setTempDescription("")
+      setTempSubtitle("")
       setTempCode("")
       setTempImage("")
       setIsDragOver(false)
@@ -387,7 +393,7 @@ export function Presentation() {
     }
   }
 
-  const handleDeleteContent = async (contentType: 'title' | 'description' | 'code' | 'image') => {
+  const handleDeleteContent = async (contentType: 'title' | 'description' | 'subtitle' | 'code' | 'image') => {
     const currentPage = getCurrentPage()
     if (!currentPage) return
 
@@ -398,6 +404,8 @@ export function Presentation() {
         updates.title = undefined
       } else if (contentType === 'description') {
         updates.description = undefined
+      } else if (contentType === 'subtitle') {
+        updates.subtitle = undefined
       } else if (contentType === 'code') {
         updates.code = undefined
         updates.codeLanguage = undefined
@@ -792,6 +800,25 @@ export function Presentation() {
                           >
                             <FileText className="w-3 h-3" />
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!page.subtitle) {
+                                setContentType('subtitle')
+                              } else {
+                                handleEditContent('subtitle')
+                              }
+                            }}
+                            disabled={!!(page.code && page.image)}
+                            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              page.subtitle 
+                                ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                            title={page.code && page.image ? "Cannot add subtitle when both code and image are present" : (page.subtitle ? "Edit Subtitle" : "Add Subtitle")}
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                          </button>
                         </div>
                         <div className="flex items-center gap-0.5">
                           <button
@@ -1040,6 +1067,7 @@ export function Presentation() {
             <DialogTitle>
               {contentType === 'title' && (getCurrentPage()?.title ? 'Edit Title' : 'Add Title')}
               {contentType === 'description' && (getCurrentPage()?.description ? 'Edit Description' : 'Add Description')} 
+              {contentType === 'subtitle' && (getCurrentPage()?.subtitle ? 'Edit Subtitle' : 'Add Subtitle')}
               {contentType === 'code' && (getCurrentPage()?.code ? 'Edit Code' : 'Add Code')}
               {contentType === 'image' && (getCurrentPage()?.image ? 'Edit Image' : 'Add Image')}
             </DialogTitle>
@@ -1061,6 +1089,20 @@ export function Presentation() {
                 rows={4}
                 autoFocus
               />
+            )}
+            {contentType === 'subtitle' && (
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="Enter subtitle sentences (multiple sentences will be shown one by one during presentation)..."
+                  value={tempSubtitle}
+                  onChange={(e) => setTempSubtitle(e.target.value)}
+                  rows={4}
+                  autoFocus
+                />
+                <p className="text-sm text-muted-foreground">
+                  💡 Tip: Each sentence will be displayed one by one when navigating right during presentation playback.
+                </p>
+              </div>
             )}
             {contentType === 'code' && (
               <div className="space-y-3">
@@ -1170,6 +1212,7 @@ export function Presentation() {
             <Button onClick={handleAddContent}>
               {contentType === 'title' && (getCurrentPage()?.title ? 'Save Changes' : 'Add Title')}
               {contentType === 'description' && (getCurrentPage()?.description ? 'Save Changes' : 'Add Description')}
+              {contentType === 'subtitle' && (getCurrentPage()?.subtitle ? 'Save Changes' : 'Add Subtitle')}
               {contentType === 'code' && (getCurrentPage()?.code ? 'Save Changes' : 'Add Code')}
               {contentType === 'image' && (getCurrentPage()?.image ? 'Save Changes' : 'Add Image')}
             </Button>

@@ -24,14 +24,31 @@ export function Play() {
   const [codeImageSpacing, setCodeImageSpacing] = useState(6)
   const [titleFontSize, setTitleFontSize] = useState(5) // 1-10 scale
   const [descriptionFontSize, setDescriptionFontSize] = useState(5) // 1-10 scale
+  const [subtitleFontSize, setSubtitleFontSize] = useState(4) // 1-10 scale
+  const [subtitleSpacing, setSubtitleSpacing] = useState(8)
   
   // Presentation controls
   const [isFullscreen, setIsFullscreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  
+  // Subtitle navigation
+  const [currentSubtitleSentenceIndex, setCurrentSubtitleSentenceIndex] = useState(0)
+  
+  // Utility function to split subtitle into sentences
+  const splitIntoSentences = (text: string): string[] => {
+    if (!text) return []
+    // Split by sentence endings, keeping the punctuation
+    return text.split(/(?<=[.!?])\s+/).filter(sentence => sentence.trim().length > 0)
+  }
 
   useEffect(() => {
     loadProject()
   }, [id])
+  
+  // Reset subtitle sentence index when slide changes
+  useEffect(() => {
+    setCurrentSubtitleSentenceIndex(0)
+  }, [currentPageIndex])
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -41,10 +58,25 @@ export function Play() {
       }
       
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        handlePrevPage()
+        // Previous navigation logic
+        if (currentSubtitleSentenceIndex > 0) {
+          setCurrentSubtitleSentenceIndex(prev => prev - 1)
+        } else if (currentPageIndex > 0) {
+          setCurrentPageIndex(prev => prev - 1)
+          setCurrentSubtitleSentenceIndex(0)
+        }
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
         e.preventDefault()
-        handleNextPage()
+        // Next navigation logic
+        const currentPage = pages[currentPageIndex]
+        const subtitleSentences = currentPage?.subtitle ? splitIntoSentences(currentPage.subtitle) : []
+        
+        if (subtitleSentences.length > 0 && currentSubtitleSentenceIndex < subtitleSentences.length - 1) {
+          setCurrentSubtitleSentenceIndex(prev => prev + 1)
+        } else if (currentPageIndex < pages.length - 1) {
+          setCurrentPageIndex(prev => prev + 1)
+          setCurrentSubtitleSentenceIndex(0)
+        }
       } else if (e.key === 'Escape') {
         if (isFullscreen) {
           exitFullscreen()
@@ -56,14 +88,16 @@ export function Play() {
         toggleFullscreen()
       } else if (e.key === 'Home') {
         setCurrentPageIndex(0)
+        setCurrentSubtitleSentenceIndex(0)
       } else if (e.key === 'End') {
         setCurrentPageIndex(pages.length - 1)
+        setCurrentSubtitleSentenceIndex(0)
       }
     }
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentPageIndex, pages.length, id, navigate, isFullscreen])
+  }, [currentPageIndex, pages, id, navigate, isFullscreen, currentSubtitleSentenceIndex, splitIntoSentences])
   
   // Fullscreen change listener
   useEffect(() => {
@@ -107,17 +141,7 @@ export function Play() {
     }
   }
 
-  const handlePrevPage = () => {
-    if (currentPageIndex > 0) {
-      setCurrentPageIndex(currentPageIndex - 1)
-    }
-  }
 
-  const handleNextPage = () => {
-    if (currentPageIndex < pages.length - 1) {
-      setCurrentPageIndex(currentPageIndex + 1)
-    }
-  }
 
   const getCurrentPage = (): PresentationPage | null => {
     return pages[currentPageIndex] || null
@@ -180,6 +204,22 @@ export function Play() {
       10: 'text-7xl md:text-8xl lg:text-9xl'
     }
     return sizeMap[sizeValue] || 'text-xl md:text-2xl'
+  }
+  
+  const getSubtitleFontSizeClass = (sizeValue: number) => {
+    const sizeMap: { [key: number]: string } = {
+      1: 'text-xs md:text-sm lg:text-base',
+      2: 'text-sm md:text-base lg:text-lg',
+      3: 'text-base md:text-lg lg:text-xl',
+      4: 'text-lg md:text-xl lg:text-2xl',
+      5: 'text-xl md:text-2xl lg:text-3xl',
+      6: 'text-2xl md:text-3xl lg:text-4xl',
+      7: 'text-3xl md:text-4xl lg:text-5xl',
+      8: 'text-4xl md:text-5xl lg:text-6xl',
+      9: 'text-5xl md:text-6xl lg:text-7xl',
+      10: 'text-6xl md:text-7xl lg:text-8xl'
+    }
+    return sizeMap[sizeValue] || 'text-lg md:text-xl'
   }
   
   const toggleFullscreen = async () => {
@@ -336,6 +376,31 @@ export function Play() {
               <p className="text-sm text-white/40 mt-2">Press → to continue or Escape to exit</p>
             </div>
           )}
+          
+          {/* Subtitle display at the bottom */}
+          {currentPage?.subtitle && (() => {
+            const subtitleSentences = splitIntoSentences(currentPage.subtitle)
+            const currentSentence = subtitleSentences[currentSubtitleSentenceIndex] || subtitleSentences[0] || ''
+            return (
+              <div className={`text-center ${getSpacingClass(subtitleSpacing)} flex-shrink-0`}>
+                <p className={`${getSubtitleFontSizeClass(subtitleFontSize)} text-white/80 leading-relaxed max-w-4xl mx-auto italic`}>
+                  {currentSentence}
+                </p>
+                {subtitleSentences.length > 1 && (
+                  <div className="mt-2 flex justify-center space-x-1">
+                    {subtitleSentences.map((_, index) => (
+                      <div
+                        key={index}
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          index <= currentSubtitleSentenceIndex ? 'bg-white/60' : 'bg-white/20'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
 
@@ -346,8 +411,15 @@ export function Play() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handlePrevPage}
-              disabled={currentPageIndex === 0}
+              onClick={() => {
+                if (currentSubtitleSentenceIndex > 0) {
+                  setCurrentSubtitleSentenceIndex(prev => prev - 1)
+                } else if (currentPageIndex > 0) {
+                  setCurrentPageIndex(prev => prev - 1)
+                  setCurrentSubtitleSentenceIndex(0)
+                }
+              }}
+              disabled={currentPageIndex === 0 && currentSubtitleSentenceIndex === 0}
               className="text-white hover:bg-white/20 disabled:opacity-30"
               title="Previous (← or ↑)"
             >
@@ -379,8 +451,22 @@ export function Play() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleNextPage}
-              disabled={currentPageIndex === pages.length - 1}
+              onClick={() => {
+                const currentPage = pages[currentPageIndex]
+                const subtitleSentences = currentPage?.subtitle ? splitIntoSentences(currentPage.subtitle) : []
+                
+                if (subtitleSentences.length > 0 && currentSubtitleSentenceIndex < subtitleSentences.length - 1) {
+                  setCurrentSubtitleSentenceIndex(prev => prev + 1)
+                } else if (currentPageIndex < pages.length - 1) {
+                  setCurrentPageIndex(prev => prev + 1)
+                  setCurrentSubtitleSentenceIndex(0)
+                }
+              }}
+              disabled={(() => {
+                const currentPage = pages[currentPageIndex]
+                const subtitleSentences = currentPage?.subtitle ? splitIntoSentences(currentPage.subtitle) : []
+                return currentPageIndex === pages.length - 1 && (subtitleSentences.length === 0 || currentSubtitleSentenceIndex >= subtitleSentences.length - 1)
+              })()}
               className="text-white hover:bg-white/20 disabled:opacity-30"
               title="Next (→, ↓, or Space)"
             >
@@ -436,6 +522,22 @@ export function Play() {
                   type="range"
                   value={descriptionFontSize}
                   onChange={(e) => setDescriptionFontSize(Number(e.target.value))}
+                  max={10}
+                  min={1}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Subtitle Size</label>
+                  <span className="text-xs text-white/60">{subtitleFontSize}/10</span>
+                </div>
+                <input
+                  type="range"
+                  value={subtitleFontSize}
+                  onChange={(e) => setSubtitleFontSize(Number(e.target.value))}
                   max={10}
                   min={1}
                   step={1}
@@ -505,6 +607,22 @@ export function Play() {
                   type="range"
                   value={codeImageSpacing}
                   onChange={(e) => setCodeImageSpacing(Number(e.target.value))}
+                  max={24}
+                  min={0}
+                  step={1}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-white">Subtitle Spacing</label>
+                  <span className="text-xs text-white/60">{subtitleSpacing}</span>
+                </div>
+                <input
+                  type="range"
+                  value={subtitleSpacing}
+                  onChange={(e) => setSubtitleSpacing(Number(e.target.value))}
                   max={24}
                   min={0}
                   step={1}

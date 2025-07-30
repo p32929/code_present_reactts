@@ -13,6 +13,7 @@ export interface PresentationPage {
   pageNumber: number
   title?: string
   description?: string
+  subtitle?: string
   code?: string
   codeLanguage?: string
   image?: string
@@ -37,6 +38,11 @@ db.version(2).stores({
 db.version(3).stores({
   projects: '++id, name, createdAt, updatedAt',
   pages: '++id, projectId, pageNumber, createdAt, updatedAt, image'
+})
+
+db.version(4).stores({
+  projects: '++id, name, createdAt, updatedAt',
+  pages: '++id, projectId, pageNumber, createdAt, updatedAt, image, subtitle'
 })
 
 export class DatabaseService {
@@ -131,6 +137,7 @@ export class DatabaseService {
       pageNumber: newPageNumber,
       title: originalPage.title,
       description: originalPage.description,
+      subtitle: originalPage.subtitle,
       code: originalPage.code,
       codeLanguage: originalPage.codeLanguage,
       image: originalPage.image,
