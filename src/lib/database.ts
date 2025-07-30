@@ -43,6 +43,13 @@ db.version(3).stores({
 db.version(4).stores({
   projects: '++id, name, createdAt, updatedAt',
   pages: '++id, projectId, pageNumber, createdAt, updatedAt, image, subtitle'
+}).upgrade(async (tx) => {
+  // Ensure all existing pages have the subtitle field initialized
+  await tx.table('pages').toCollection().modify((page: any) => {
+    if (page.subtitle === undefined) {
+      page.subtitle = ''
+    }
+  })
 })
 
 export class DatabaseService {

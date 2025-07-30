@@ -175,6 +175,7 @@ export function Dashboard() {
         slides: pages.map(page => ({
           title: page.title || '',
           description: page.description || '',
+          subtitle: page.subtitle || '',
           code: page.code || '',
           codeLanguage: page.codeLanguage || 'javascript',
           image: page.image || ''
@@ -300,6 +301,7 @@ export function Dashboard() {
         await DatabaseService.updatePage(pageId, {
           title: slide.title || '',
           description: slide.description || '',
+          subtitle: slide.subtitle || '',
           code: slide.code || '',
           codeLanguage: slide.codeLanguage || 'javascript',
           image: slide.image || ''

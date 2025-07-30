@@ -174,7 +174,11 @@ export function Presentation() {
     try {
       await DatabaseService.clonePage(pageId)
       await loadPages(project.id!)
-      setCurrentPageIndex(pages.length) // Navigate to cloned page
+      // Navigate to the last page (the cloned page) after pages are reloaded
+      // Use setTimeout to ensure pages state is updated
+      setTimeout(() => {
+        setCurrentPageIndex(pages.length - 1)
+      }, 0)
     } catch (error) {
       console.error('Failed to clone page:', error)
     }
@@ -765,10 +769,16 @@ export function Presentation() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              // First, select the correct slide
+                              setCurrentPageIndex(index)
+                              // Then handle the title editing
                               if (!page.title) {
                                 setContentType('title')
                               } else {
-                                handleEditContent('title')
+                                // Use setTimeout to ensure currentPageIndex is updated first
+                                setTimeout(() => {
+                                  handleEditContent('title')
+                                }, 0)
                               }
                             }}
                             disabled={!!(page.code && page.image)}
@@ -784,10 +794,16 @@ export function Presentation() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              // First, select the correct slide
+                              setCurrentPageIndex(index)
+                              // Then handle the description editing
                               if (!page.description) {
                                 setContentType('description')
                               } else {
-                                handleEditContent('description')
+                                // Use setTimeout to ensure currentPageIndex is updated first
+                                setTimeout(() => {
+                                  handleEditContent('description')
+                                }, 0)
                               }
                             }}
                             disabled={!!(page.code && page.image)}
@@ -803,10 +819,16 @@ export function Presentation() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              // First, select the correct slide
+                              setCurrentPageIndex(index)
+                              // Then handle the subtitle editing
                               if (!page.subtitle) {
                                 setContentType('subtitle')
                               } else {
-                                handleEditContent('subtitle')
+                                // Use setTimeout to ensure currentPageIndex is updated first
+                                setTimeout(() => {
+                                  handleEditContent('subtitle')
+                                }, 0)
                               }
                             }}
                             disabled={!!(page.code && page.image)}
@@ -824,10 +846,16 @@ export function Presentation() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              // First, select the correct slide
+                              setCurrentPageIndex(index)
+                              // Then handle the code editing
                               if (!page.code) {
                                 setContentType('code')
                               } else {
-                                handleEditContent('code')
+                                // Use setTimeout to ensure currentPageIndex is updated first
+                                setTimeout(() => {
+                                  handleEditContent('code')
+                                }, 0)
                               }
                             }}
                             disabled={!!page.image}
@@ -843,10 +871,16 @@ export function Presentation() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              // First, select the correct slide
+                              setCurrentPageIndex(index)
+                              // Then handle the image editing
                               if (!page.image) {
                                 setContentType('image')
                               } else {
-                                handleEditContent('image')
+                                // Use setTimeout to ensure currentPageIndex is updated first
+                                setTimeout(() => {
+                                  handleEditContent('image')
+                                }, 0)
                               }
                             }}
                             disabled={!!page.code}
