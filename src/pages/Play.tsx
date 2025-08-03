@@ -16,16 +16,40 @@ export function Play() {
   const [isLoading, setIsLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
-  // Settings states
+  // Settings states with localStorage persistence
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false)
-  const [titleTopSpacing, setTitleTopSpacing] = useState(8)
-  const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(6)
-  const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(6)
-  const [codeImageSpacing, setCodeImageSpacing] = useState(6)
-  const [titleFontSize, setTitleFontSize] = useState(5) // 1-10 scale
-  const [descriptionFontSize, setDescriptionFontSize] = useState(5) // 1-10 scale
-  const [subtitleFontSize, setSubtitleFontSize] = useState(4) // 1-10 scale
-  const [subtitleSpacing, setSubtitleSpacing] = useState(8)
+  const [titleTopSpacing, setTitleTopSpacing] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-titleTopSpacing')
+    return saved ? Number(saved) : 8
+  })
+  const [descriptionTitleSpacing, setDescriptionTitleSpacing] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-descriptionTitleSpacing')
+    return saved ? Number(saved) : 6
+  })
+  const [imageDescriptionSpacing, setImageDescriptionSpacing] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-imageDescriptionSpacing')
+    return saved ? Number(saved) : 6
+  })
+  const [codeImageSpacing, setCodeImageSpacing] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-codeImageSpacing')
+    return saved ? Number(saved) : 6
+  })
+  const [titleFontSize, setTitleFontSize] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-titleFontSize')
+    return saved ? Number(saved) : 5
+  })
+  const [descriptionFontSize, setDescriptionFontSize] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-descriptionFontSize')
+    return saved ? Number(saved) : 5
+  })
+  const [subtitleFontSize, setSubtitleFontSize] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-subtitleFontSize')
+    return saved ? Number(saved) : 4
+  })
+  const [subtitleSpacing, setSubtitleSpacing] = useState(() => {
+    const saved = localStorage.getItem('presentation-settings-subtitleSpacing')
+    return saved ? Number(saved) : 8
+  })
   
   // Presentation controls
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -122,6 +146,39 @@ export function Play() {
   useEffect(() => {
     loadProject()
   }, [id])
+
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-titleTopSpacing', titleTopSpacing.toString())
+  }, [titleTopSpacing])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-descriptionTitleSpacing', descriptionTitleSpacing.toString())
+  }, [descriptionTitleSpacing])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-imageDescriptionSpacing', imageDescriptionSpacing.toString())
+  }, [imageDescriptionSpacing])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-codeImageSpacing', codeImageSpacing.toString())
+  }, [codeImageSpacing])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-titleFontSize', titleFontSize.toString())
+  }, [titleFontSize])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-descriptionFontSize', descriptionFontSize.toString())
+  }, [descriptionFontSize])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-subtitleFontSize', subtitleFontSize.toString())
+  }, [subtitleFontSize])
+  
+  useEffect(() => {
+    localStorage.setItem('presentation-settings-subtitleSpacing', subtitleSpacing.toString())
+  }, [subtitleSpacing])
   
 
   useEffect(() => {

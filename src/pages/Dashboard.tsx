@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload } from "lucide-react"
+import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload, ChevronDown, Database, FileText, Settings, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -39,6 +39,10 @@ export function Dashboard() {
   const [importError, setImportError] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   
+  // Menu states
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -69,6 +73,23 @@ export function Dashboard() {
   useEffect(() => {
     filterAndSortProjects()
   }, [projects, searchQuery, sortBy])
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false)
+      }
+    }
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isMenuOpen])
 
   const loadProjects = async () => {
     try {
@@ -196,6 +217,129 @@ export function Dashboard() {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Failed to export presentation:', error)
+    }
+  }
+
+  const handleExportAllData = async () => {
+    try {
+      const allData = {
+        projects: [],
+        settings: {
+          titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
+          descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
+          imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
+          codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
+          titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
+          descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
+          subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
+          subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8'
+        },
+        exportedAt: new Date().toISOString()
+      }
+
+      for (const project of projects) {
+        const pages = await DatabaseService.getProjectPages(project.id!)
+        allData.projects.push({
+          name: project.name,
+          createdAt: project.createdAt,
+          updatedAt: project.updatedAt,
+          slides: pages.map(page => ({
+            title: page.title || '',
+            description: page.description || '',
+            subtitle: page.subtitle || '',
+            code: page.code || '',
+            codeLanguage: page.codeLanguage || 'javascript',
+            image: page.image || ''
+          }))
+        })
+      }
+
+      const dataStr = JSON.stringify(allData, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `codepresent_full_backup_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export all data:', error)
+    }
+  }
+
+  const handleExportAllSlides = async () => {
+    try {
+      const allSlides = []
+
+      for (const project of projects) {
+        const pages = await DatabaseService.getProjectPages(project.id!)
+        allSlides.push({
+          name: project.name,
+          slides: pages.map(page => ({
+            title: page.title || '',
+            description: page.description || '',
+            subtitle: page.subtitle || '',
+            code: page.code || '',
+            codeLanguage: page.codeLanguage || 'javascript',
+            image: page.image || ''
+          }))
+        })
+      }
+
+      const exportData = {
+        presentations: allSlides,
+        exportedAt: new Date().toISOString()
+      }
+
+      const dataStr = JSON.stringify(exportData, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `codepresent_slides_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export slides:', error)
+    }
+  }
+
+  const handleExportSettings = () => {
+    try {
+      const settings = {
+        titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
+        descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
+        imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
+        codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
+        titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
+        descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
+        subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
+        subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8',
+        exportedAt: new Date().toISOString()
+      }
+
+      const dataStr = JSON.stringify(settings, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `codepresent_settings_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export settings:', error)
     }
   }
 
@@ -351,28 +495,82 @@ export function Dashboard() {
             
             <div className="flex items-center gap-2">
               <ThemeToggle />
-              {projects.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleResetAllData}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Reset All
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={handleImportPresentation}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Import
-              </Button>
               <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Presentation
               </Button>
+              <div className="relative" ref={menuRef}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="ml-1"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </Button>
+                {isMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-64 bg-background border border-border rounded-md shadow-lg z-50">
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          handleImportPresentation()
+                          setIsMenuOpen(false)
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                      >
+                        <Upload className="w-4 h-4 mr-3" />
+                        Import Presentation
+                      </button>
+                      {projects.length > 0 && (
+                        <>
+                          <div className="border-t border-border my-1"></div>
+                          <button
+                            onClick={() => {
+                              handleExportAllData()
+                              setIsMenuOpen(false)
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                          >
+                            <Database className="w-4 h-4 mr-3" />
+                            Export All Data
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleExportAllSlides()
+                              setIsMenuOpen(false)
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                          >
+                            <FileText className="w-4 h-4 mr-3" />
+                            Export All Presentations
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleExportSettings()
+                              setIsMenuOpen(false)
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                          >
+                            <Settings className="w-4 h-4 mr-3" />
+                            Export Settings
+                          </button>
+                          <div className="border-t border-border my-1"></div>
+                          <button
+                            onClick={() => {
+                              handleResetAllData()
+                              setIsMenuOpen(false)
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center text-destructive"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-3" />
+                            Reset All Data
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
