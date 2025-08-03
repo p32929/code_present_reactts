@@ -33,7 +33,6 @@ export function Dashboard() {
   const [resetRandomNumber, setResetRandomNumber] = useState(0)
   
   // Import presentation states
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState("")
@@ -42,6 +41,14 @@ export function Dashboard() {
   // Menu states
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Export dialog states
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [exportOptions, setExportOptions] = useState({
+    projects: true,
+    settings: true
+  })
   
   const navigate = useNavigate()
 
@@ -141,6 +148,9 @@ export function Dashboard() {
       try {
         const projectId = await DatabaseService.createProject(newProjectName.trim())
         setNewProjectName("")
+        setImportFile(null)
+        setImportError("")
+        setIsDragOver(false)
         setIsCreateDialogOpen(false)
         navigate(`/presentation/${projectId}`)
       } catch (error) {
@@ -343,6 +353,240 @@ export function Dashboard() {
     }
   }
 
+  const handleImportAllData = async (file: File) => {
+    try {
+      const fileContent = await file.text()
+      const importData = JSON.parse(fileContent)
+
+      // Validate the import data structure
+      if (!importData.projects || !Array.isArray(importData.projects) || !importData.settings) {
+        throw new Error("Invalid file format. Expected a JSON file with 'projects' and 'settings' properties.")
+      }
+
+      // Import settings
+      Object.entries(importData.settings).forEach(([key, value]) => {
+        if (key !== 'exportedAt' && typeof value === 'string') {
+          localStorage.setItem(`presentation-settings-${key}`, value)
+        }
+      })
+
+      // Import all projects
+      for (const projectData of importData.projects) {
+        const projectId = await DatabaseService.createProject(projectData.name)
+        
+        // Import all slides for this project
+        for (const slide of projectData.slides) {
+          const pageId = await DatabaseService.createPage(projectId)
+          await DatabaseService.updatePage(pageId, {
+            title: slide.title || '',
+            description: slide.description || '',
+            subtitle: slide.subtitle || '',
+            code: slide.code || '',
+            codeLanguage: slide.codeLanguage || 'javascript',
+            image: slide.image || ''
+          })
+        }
+      }
+
+      await loadProjects()
+    } catch (error) {
+      console.error('Failed to import all data:', error)
+      throw error
+    }
+  }
+
+  const handleImportAllPresentations = async (file: File) => {
+    try {
+      const fileContent = await file.text()
+      const importData = JSON.parse(fileContent)
+
+      // Validate the import data structure
+      if (!importData.presentations || !Array.isArray(importData.presentations)) {
+        throw new Error("Invalid file format. Expected a JSON file with 'presentations' property.")
+      }
+
+      // Import all presentations
+      for (const presentationData of importData.presentations) {
+        const projectId = await DatabaseService.createProject(presentationData.name)
+        
+        // Import all slides for this presentation
+        for (const slide of presentationData.slides) {
+          const pageId = await DatabaseService.createPage(projectId)
+          await DatabaseService.updatePage(pageId, {
+            title: slide.title || '',
+            description: slide.description || '',
+            subtitle: slide.subtitle || '',
+            code: slide.code || '',
+            codeLanguage: slide.codeLanguage || 'javascript',
+            image: slide.image || ''
+          })
+        }
+      }
+
+      await loadProjects()
+    } catch (error) {
+      console.error('Failed to import presentations:', error)
+      throw error
+    }
+  }
+
+  const handleImportSettings = async (file: File) => {
+    try {
+      const fileContent = await file.text()
+      const importData = JSON.parse(fileContent)
+
+      // Validate the import data structure
+      if (typeof importData !== 'object' || !importData.titleTopSpacing) {
+        throw new Error("Invalid file format. Expected a settings JSON file.")
+      }
+
+      // Import settings
+      Object.entries(importData).forEach(([key, value]) => {
+        if (key !== 'exportedAt' && typeof value === 'string') {
+          localStorage.setItem(`presentation-settings-${key}`, value)
+        }
+      })
+
+    } catch (error) {
+      console.error('Failed to import settings:', error)
+      throw error
+    }
+  }
+
+  const handleUnifiedImport = async (file: File) => {
+    try {
+      const fileContent = await file.text()
+      const importData = JSON.parse(fileContent)
+
+      // Auto-detect file type based on structure
+      if (importData.projects && Array.isArray(importData.projects) && importData.settings) {
+        // Full backup file (projects + settings)
+        console.log('Detected: Full backup file')
+        await handleImportAllData(file)
+        return 'Imported full backup (projects and settings)'
+      } else if (importData.presentations && Array.isArray(importData.presentations)) {
+        // Multiple presentations export
+        console.log('Detected: Multiple presentations file')
+        await handleImportAllPresentations(file)
+        return 'Imported multiple presentations'
+      } else if (importData.name && Array.isArray(importData.slides)) {
+        // Single presentation export
+        console.log('Detected: Single presentation file')
+        setImportFile(file)
+        await handleConfirmImport()
+        return 'Imported single presentation'
+      } else if (importData.titleTopSpacing && typeof importData === 'object') {
+        // Settings export
+        console.log('Detected: Settings file')
+        await handleImportSettings(file)
+        return 'Imported settings'
+      } else {
+        throw new Error("Unknown file format. Please ensure you're importing a valid CodePresent export file.")
+      }
+    } catch (error) {
+      console.error('Failed to import file:', error)
+      if (error instanceof SyntaxError) {
+        throw new Error("Invalid JSON file format")
+      }
+      throw error
+    }
+  }
+
+  const handleUnifiedExport = async () => {
+    try {
+      let exportData: any = {}
+      let filename = 'codepresent_export'
+
+      if (exportOptions.projects && exportOptions.settings) {
+        // Export everything (full backup)
+        exportData = {
+          projects: [],
+          settings: {
+            titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
+            descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
+            imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
+            codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
+            titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
+            descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
+            subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
+            subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8'
+          },
+          exportedAt: new Date().toISOString()
+        }
+
+        for (const project of projects) {
+          const pages = await DatabaseService.getProjectPages(project.id!)
+          exportData.projects.push({
+            name: project.name,
+            createdAt: project.createdAt,
+            updatedAt: project.updatedAt,
+            slides: pages.map(page => ({
+              title: page.title || '',
+              description: page.description || '',
+              subtitle: page.subtitle || '',
+              code: page.code || '',
+              codeLanguage: page.codeLanguage || 'javascript',
+              image: page.image || ''
+            }))
+          })
+        }
+        filename = 'codepresent_full_backup'
+      } else if (exportOptions.projects) {
+        // Export only presentations
+        const allSlides = []
+        for (const project of projects) {
+          const pages = await DatabaseService.getProjectPages(project.id!)
+          allSlides.push({
+            name: project.name,
+            slides: pages.map(page => ({
+              title: page.title || '',
+              description: page.description || '',
+              subtitle: page.subtitle || '',
+              code: page.code || '',
+              codeLanguage: page.codeLanguage || 'javascript',
+              image: page.image || ''
+            }))
+          })
+        }
+        exportData = {
+          presentations: allSlides,
+          exportedAt: new Date().toISOString()
+        }
+        filename = 'codepresent_presentations'
+      } else if (exportOptions.settings) {
+        // Export only settings
+        exportData = {
+          titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
+          descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
+          imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
+          codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
+          titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
+          descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
+          subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
+          subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8',
+          exportedAt: new Date().toISOString()
+        }
+        filename = 'codepresent_settings'
+      }
+
+      const dataStr = JSON.stringify(exportData, null, 2)
+      const blob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${filename}_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      URL.revokeObjectURL(url)
+      setIsExportDialogOpen(false)
+    } catch (error) {
+      console.error('Failed to export data:', error)
+    }
+  }
+
   const handleConfirmDelete = async () => {
     if (deletingProject) {
       try {
@@ -376,12 +620,6 @@ export function Dashboard() {
     }
   }
 
-  const handleImportPresentation = () => {
-    setImportFile(null)
-    setImportError("")
-    setIsDragOver(false)
-    setIsImportDialogOpen(true)
-  }
 
   const validateAndSetFile = (file: File) => {
     if (file.type === 'application/json' || file.name.endsWith('.json')) {
@@ -454,8 +692,14 @@ export function Dashboard() {
 
       // Reload projects and navigate to the imported project
       await loadProjects()
-      setIsImportDialogOpen(false)
+      setIsCreateDialogOpen(false)
+      setNewProjectName("")
       setImportFile(null)
+      setImportError("")
+      setIsDragOver(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
       navigate(`/presentation/${projectId}`)
     } catch (error) {
       console.error('Failed to import presentation:', error)
@@ -509,50 +753,48 @@ export function Dashboard() {
                   <MoreVertical className="w-4 h-4" />
                 </Button>
                 {isMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-64 bg-background border border-border rounded-md shadow-lg z-50">
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-50">
                     <div className="py-1">
-                      <button
-                        onClick={() => {
-                          handleImportPresentation()
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (file) {
+                            try {
+                              const message = await handleUnifiedImport(file)
+                              alert(message)
+                            } catch (error: any) {
+                              alert(`Import failed: ${error.message}`)
+                            }
+                          }
                           setIsMenuOpen(false)
+                          e.target.value = ''
                         }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
-                      >
-                        <Upload className="w-4 h-4 mr-3" />
-                        Import Presentation
-                      </button>
+                        className="hidden"
+                        id="unified-import-input"
+                      />
+                      <label htmlFor="unified-import-input">
+                        <button
+                          onClick={() => document.getElementById('unified-import-input')?.click()}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                        >
+                          <Upload className="w-4 h-4 mr-3" />
+                          Import
+                        </button>
+                      </label>
+                      
                       {projects.length > 0 && (
                         <>
-                          <div className="border-t border-border my-1"></div>
                           <button
                             onClick={() => {
-                              handleExportAllData()
+                              setIsExportDialogOpen(true)
                               setIsMenuOpen(false)
                             }}
                             className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
                           >
-                            <Database className="w-4 h-4 mr-3" />
-                            Export All Data
-                          </button>
-                          <button
-                            onClick={() => {
-                              handleExportAllSlides()
-                              setIsMenuOpen(false)
-                            }}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
-                          >
-                            <FileText className="w-4 h-4 mr-3" />
-                            Export All Presentations
-                          </button>
-                          <button
-                            onClick={() => {
-                              handleExportSettings()
-                              setIsMenuOpen(false)
-                            }}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
-                          >
-                            <Settings className="w-4 h-4 mr-3" />
-                            Export Settings
+                            <Download className="w-4 h-4 mr-3" />
+                            Export
                           </button>
                           <div className="border-t border-border my-1"></div>
                           <button
@@ -724,32 +966,118 @@ export function Dashboard() {
           <DialogHeader>
             <DialogTitle>Create New Presentation</DialogTitle>
             <DialogDescription>
-              Enter a name for your new presentation. You can always change this later.
+              Create a new presentation by entering a name or import from a JSON file.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder="e.g., React Hooks Deep Dive, Node.js Best Practices"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleCreateProject()
-                }
-              }}
-              autoFocus
-            />
+          <div className="space-y-6 py-4">
+            {/* Create from scratch */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Create from scratch</h4>
+              <Input
+                placeholder="e.g., React Hooks Deep Dive, Node.js Best Practices"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newProjectName.trim()) {
+                    handleCreateProject()
+                  }
+                }}
+              />
+            </div>
+            
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or import from file
+                </span>
+              </div>
+            </div>
+            
+            {/* Import from file */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm">Import presentation</h4>
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                  isDragOver
+                    ? 'border-primary bg-primary/5'
+                    : importFile
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
+                      : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <Upload className={`w-6 h-6 mx-auto mb-2 ${
+                  isDragOver
+                    ? 'text-primary'
+                    : importFile
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-muted-foreground'
+                }`} />
+                <p className="text-sm font-medium mb-1">
+                  {isDragOver
+                    ? 'Drop your JSON file here'
+                    : importFile
+                      ? importFile.name
+                      : 'Drag and drop a JSON file, or click to select'
+                  }
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Only JSON files exported from CodePresent are supported
+                </p>
+              </div>
+              {importError && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                  <p className="text-sm text-destructive">{importError}</p>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsCreateDialogOpen(false)
+              setNewProjectName("")
+              setImportFile(null)
+              setImportError("")
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>
-              Create Presentation
+            <Button 
+              onClick={importFile ? handleConfirmImport : handleCreateProject} 
+              disabled={!newProjectName.trim() && !importFile}
+            >
+              {isImporting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  Importing...
+                </>
+              ) : importFile ? (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import Presentation
+                </>
+              ) : (
+                'Create Presentation'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden file input for single presentation import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
 
       {/* Edit Project Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -859,87 +1187,97 @@ export function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Import Presentation Dialog */}
-      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+      {/* Export Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Import Presentation</DialogTitle>
+            <DialogTitle>Export Data</DialogTitle>
             <DialogDescription>
-              Select a JSON file exported from CodePresent to import a presentation with all its slides.
+              Choose what you'd like to export. The system will automatically create the appropriate file format.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div>
-              <input
-                type="file"
-                accept=".json,application/json"
-                onChange={handleFileSelect}
-                className="hidden"
-                id="import-file-input"
-              />
-              <label htmlFor="import-file-input">
-                <div 
-                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                    isDragOver 
-                      ? 'border-primary bg-primary/5' 
-                      : importFile 
-                        ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
-                        : 'border-border hover:border-primary/50'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <Upload className={`w-8 h-8 mx-auto mb-2 ${
-                    isDragOver 
-                      ? 'text-primary' 
-                      : importFile 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-muted-foreground'
-                  }`} />
-                  <p className="text-sm font-medium mb-1">
-                    {isDragOver 
-                      ? 'Drop your JSON file here' 
-                      : importFile 
-                        ? importFile.name 
-                        : 'Drag and drop a JSON file, or click to select'
-                    }
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Only JSON files exported from CodePresent are supported
-                  </p>
-                </div>
-              </label>
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium">What to export:</h4>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportOptions.projects}
+                    onChange={(e) => setExportOptions(prev => ({ ...prev, projects: e.target.checked }))}
+                    className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary"
+                  />
+                  <div className="flex items-center space-x-2">
+                    <FileText className="w-4 h-4 text-primary" />
+                    <span className="text-sm">All Presentations</span>
+                  </div>
+                </label>
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportOptions.settings}
+                    onChange={(e) => setExportOptions(prev => ({ ...prev, settings: e.target.checked }))}
+                    className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary"
+                  />
+                  <div className="flex items-center space-x-2">
+                    <Settings className="w-4 h-4 text-primary" />
+                    <span className="text-sm">Presentation Settings</span>
+                  </div>
+                </label>
+              </div>
             </div>
-            {importError && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3">
-                <p className="text-sm text-destructive">{importError}</p>
+            
+            {exportOptions.projects && exportOptions.settings && (
+              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Full Backup</span>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  This will create a complete backup with all presentations and settings.
+                </p>
+              </div>
+            )}
+            
+            {exportOptions.projects && !exportOptions.settings && (
+              <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-medium text-green-700 dark:text-green-300">Presentations Only</span>
+                </div>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  Export only your presentations without settings.
+                </p>
+              </div>
+            )}
+            
+            {!exportOptions.projects && exportOptions.settings && (
+              <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  <Settings className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Settings Only</span>
+                </div>
+                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                  Export only your presentation settings configuration.
+                </p>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
               Cancel
             </Button>
             <Button 
-              onClick={handleConfirmImport} 
-              disabled={!importFile || isImporting}
+              onClick={handleUnifiedExport}
+              disabled={!exportOptions.projects && !exportOptions.settings}
             >
-              {isImporting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
-                  Importing...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Presentation
-                </>
-              )}
+              <Download className="w-4 h-4 mr-2" />
+              Export
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   )
 }
