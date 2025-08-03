@@ -449,7 +449,7 @@ export function Dashboard() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleExportPresentation(project)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="transition-opacity"
                           title="Export as JSON"
                         >
                           <Download className="w-4 h-4" />
@@ -458,7 +458,7 @@ export function Dashboard() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEditProject(project)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="transition-opacity"
                           title="Rename"
                         >
                           <Type className="w-4 h-4" />
@@ -467,7 +467,7 @@ export function Dashboard() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDeleteProject(project)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                          className="transition-opacity text-destructive hover:text-destructive"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
