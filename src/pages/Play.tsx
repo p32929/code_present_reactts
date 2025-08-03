@@ -470,11 +470,28 @@ export function Play() {
 
           {currentPage?.image && (
             <div className={`flex justify-center ${getSpacingClass(imageDescriptionSpacing)} flex-1 min-h-0`}>
-              <img 
-                src={currentPage.image} 
-                alt="Slide content" 
-                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
-              />
+              {currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? (
+                <img 
+                  src={currentPage.image} 
+                  alt="Slide content" 
+                  className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    if (target.nextElementSibling) {
+                      (target.nextElementSibling as HTMLElement).style.display = 'block';
+                    }
+                  }}
+                />
+              ) : null}
+              <div 
+                className={`${currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'hidden' : 'block'} max-w-4xl mx-auto p-8 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 text-white text-center break-words`}
+                style={{ display: currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'none' : 'block' }}
+              >
+                <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed">
+                  {currentPage.image}
+                </pre>
+              </div>
             </div>
           )}
           

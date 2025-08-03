@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -73,6 +73,7 @@ export function Presentation() {
   const [tempCode, setTempCode] = useState("")
   const [tempCodeLanguage, setTempCodeLanguage] = useState("javascript")
   const [tempImage, setTempImage] = useState("")
+  const [isCopied, setIsCopied] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -354,6 +355,7 @@ export function Presentation() {
       setTempCodeLanguage(currentPage.codeLanguage || "javascript")
     } else if (type === 'image') {
       setTempImage(currentPage.image || "")
+      setIsCopied(false) // Reset copy state when opening image dialog
     }
 
     setContentType(type)
@@ -389,6 +391,7 @@ export function Presentation() {
       setTempSubtitle("")
       setTempCode("")
       setTempImage("")
+      setIsCopied(false)
       setIsDragOver(false)
       setContentType(null)
       setIsAddContentDialogOpen(false)
@@ -962,12 +965,30 @@ export function Presentation() {
 
               {currentPage?.image && (
                 <div className="group relative flex justify-center">
-                  <img 
-                    src={currentPage.image} 
-                    alt="Slide content" 
-                    className="max-w-full max-h-96 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                  {currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? (
+                    <img 
+                      src={currentPage.image} 
+                      alt="Slide content" 
+                      className="max-w-full max-h-96 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => handleEditContent('image')}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        if (target.nextElementSibling) {
+                          (target.nextElementSibling as HTMLElement).style.display = 'block';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className={`${currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'hidden' : 'block'} max-w-full p-6 bg-muted/50 rounded-lg border border-border cursor-pointer hover:bg-muted/70 transition-colors`}
+                    style={{ display: currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'none' : 'block' }}
                     onClick={() => handleEditContent('image')}
-                  />
+                  >
+                    <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground break-words">
+                      {currentPage.image}
+                    </pre>
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1089,6 +1110,7 @@ export function Presentation() {
           setTempTitle("")
           setTempDescription("")
           setTempCode("")
+          setIsCopied(false)
           setTempImage("")
           setIsDragOver(false)
           if (fileInputRef.current) {
@@ -1165,41 +1187,75 @@ export function Presentation() {
             {contentType === 'image' && (
               <div className="space-y-4">
                 {!tempImage ? (
-                  <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                      isDragOver
-                        ? 'border-primary bg-primary/5'
-                        : 'border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/20'
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        isDragOver ? 'bg-primary/20' : 'bg-muted'
-                      }`}>
-                        <Image className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {isDragOver ? 'Drop image here' : 'Upload an image'}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Drag and drop or click to browse
-                        </p>
+                  <div className="space-y-4">
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                        isDragOver
+                          ? 'border-primary bg-primary/5'
+                          : 'border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/20'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          isDragOver ? 'bg-primary/20' : 'bg-muted'
+                        }`}>
+                          <Image className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium">
+                            {isDragOver ? 'Drop image here' : 'Upload an image'}
+                          </p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Drag and drop or click to browse
+                          </p>
+                        </div>
                       </div>
                     </div>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">
+                          Or enter URL/text
+                        </span>
+                      </div>
+                    </div>
+                    <Input
+                      placeholder="Enter image URL or any text content..."
+                      value={tempImage}
+                      onChange={(e) => setTempImage(e.target.value)}
+                    />
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="border rounded-lg p-4 bg-muted/20">
-                      <img 
-                        src={tempImage} 
-                        alt="Preview" 
-                        className="max-w-full max-h-40 object-contain mx-auto rounded"
-                      />
+                      {tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./') ? (
+                        <img 
+                          src={tempImage} 
+                          alt="Preview" 
+                          className="max-w-full max-h-40 object-contain mx-auto rounded"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            if (target.nextElementSibling) {
+                              (target.nextElementSibling as HTMLElement).style.display = 'block';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`${tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./') ? 'hidden' : 'block'} text-center`}
+                        style={{ display: tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./') ? 'none' : 'block' }}
+                      >
+                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground break-words max-h-40 overflow-y-auto">
+                          {tempImage}
+                        </pre>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -1221,6 +1277,29 @@ export function Presentation() {
                       >
                         Change Image
                       </Button>
+                      {!(tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./')) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(tempImage)
+                              setIsCopied(true)
+                              setTimeout(() => setIsCopied(false), 2000)
+                            } catch (err) {
+                              console.error('Failed to copy text:', err)
+                            }
+                          }}
+                          className={`transition-colors ${isCopied ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-950 dark:border-green-800 dark:text-green-300' : ''}`}
+                        >
+                          {isCopied ? (
+                            <Check className="w-4 h-4 mr-1" />
+                          ) : (
+                            <Copy className="w-4 h-4 mr-1" />
+                          )}
+                          {isCopied ? 'Copied!' : 'Copy Text'}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1240,7 +1319,10 @@ export function Presentation() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setContentType(null)}>
+            <Button variant="outline" onClick={() => {
+              setContentType(null)
+              setIsCopied(false)
+            }}>
               Cancel
             </Button>
             <Button onClick={handleAddContent}>
