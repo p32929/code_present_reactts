@@ -45,10 +45,6 @@ export function Play() {
     loadProject()
   }, [id])
   
-  // Reset subtitle sentence index when slide changes
-  useEffect(() => {
-    setCurrentSubtitleSentenceIndex(0)
-  }, [currentPageIndex])
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -62,8 +58,10 @@ export function Play() {
         if (currentSubtitleSentenceIndex > 0) {
           setCurrentSubtitleSentenceIndex(prev => prev - 1)
         } else if (currentPageIndex > 0) {
+          const previousPage = pages[currentPageIndex - 1]
+          const prevSubtitleSentences = previousPage?.subtitle ? splitIntoSentences(previousPage.subtitle) : []
           setCurrentPageIndex(prev => prev - 1)
-          setCurrentSubtitleSentenceIndex(0)
+          setCurrentSubtitleSentenceIndex(prevSubtitleSentences.length > 0 ? prevSubtitleSentences.length - 1 : 0)
         }
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
         e.preventDefault()
@@ -97,7 +95,7 @@ export function Play() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentPageIndex, pages, id, navigate, isFullscreen, currentSubtitleSentenceIndex, splitIntoSentences])
+  }, [currentPageIndex, pages, id, navigate, isFullscreen, currentSubtitleSentenceIndex])
   
   // Fullscreen change listener
   useEffect(() => {
@@ -415,8 +413,10 @@ export function Play() {
                 if (currentSubtitleSentenceIndex > 0) {
                   setCurrentSubtitleSentenceIndex(prev => prev - 1)
                 } else if (currentPageIndex > 0) {
+                  const previousPage = pages[currentPageIndex - 1]
+                  const prevSubtitleSentences = previousPage?.subtitle ? splitIntoSentences(previousPage.subtitle) : []
                   setCurrentPageIndex(prev => prev - 1)
-                  setCurrentSubtitleSentenceIndex(0)
+                  setCurrentSubtitleSentenceIndex(prevSubtitleSentences.length > 0 ? prevSubtitleSentences.length - 1 : 0)
                 }
               }}
               disabled={currentPageIndex === 0 && currentSubtitleSentenceIndex === 0}
