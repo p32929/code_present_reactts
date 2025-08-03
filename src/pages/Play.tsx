@@ -37,8 +37,86 @@ export function Play() {
   // Utility function to split subtitle into sentences
   const splitIntoSentences = (text: string): string[] => {
     if (!text) return []
-    // Split by sentence endings, keeping the punctuation
-    return text.split(/(?<=[.!?])\s+/).filter(sentence => sentence.trim().length > 0)
+
+    const finalSentences: string[] = []
+    const minWords = 3
+    const maxLength = 80 // Max characters per subtitle chunk
+
+    // First, split by sentence endings
+    const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0)
+
+    sentences.forEach(sentence => {
+      // Further split by commas, but only if the parts are long enough
+      const commaSplits = sentence.split(',')
+      let tempChunk = ''
+
+      commaSplits.forEach(split => {
+        const trimmedSplit = split.trim()
+        if (trimmedSplit.split(' ').length >= minWords) {
+          if (tempChunk) {
+            finalSentences.push(tempChunk.trim())
+          }
+          finalSentences.push(trimmedSplit)
+          tempChunk = ''
+        } else {
+          tempChunk += (tempChunk ? ',' : '') + split
+        }
+      })
+
+      if (tempChunk) {
+        finalSentences.push(tempChunk.trim())
+      }
+    })
+
+    // Final pass to break up any remaining long sentences
+    const trulyFinalSentences: string[] = []
+    finalSentences.forEach(sentence => {
+      if (sentence.length > maxLength) {
+        let currentChunk = ''
+        const words = sentence.split(' ')
+        for (const word of words) {
+          if ((currentChunk + ' ' + word).length > maxLength && currentChunk.trim().split(' ').length >= 2) {
+            trulyFinalSentences.push(currentChunk.trim())
+            currentChunk = word
+          } else {
+            currentChunk += (currentChunk ? ' ' : '') + word
+          }
+        }
+        if (currentChunk.trim().length > 0) {
+          trulyFinalSentences.push(currentChunk.trim())
+        }
+      } else {
+        trulyFinalSentences.push(sentence)
+      }
+    })
+
+    // Final cleanup pass to merge single-word segments with adjacent ones
+    const cleanedSentences: string[] = []
+    for (let i = 0; i < trulyFinalSentences.length; i++) {
+      const current = trulyFinalSentences[i].trim()
+      const wordCount = current.split(' ').length
+      
+      if (wordCount < 2) {
+        // If this is a single word, try to merge with next or previous
+        if (i < trulyFinalSentences.length - 1) {
+          // Merge with next sentence
+          const next = trulyFinalSentences[i + 1].trim()
+          cleanedSentences.push(`${current} ${next}`)
+          i++ // Skip the next sentence since we merged it
+        } else if (cleanedSentences.length > 0) {
+          // Merge with previous sentence
+          const lastIndex = cleanedSentences.length - 1
+          cleanedSentences[lastIndex] = `${cleanedSentences[lastIndex]} ${current}`
+        } else {
+          // If it's the only sentence, keep it as is
+          cleanedSentences.push(current)
+        }
+      } else {
+        cleanedSentences.push(current)
+      }
+    }
+
+    return cleanedSentences.filter(s => s.length > 0)
   }
 
   useEffect(() => {
