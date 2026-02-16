@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare, Check } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare, Check, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
+import { ExportVideoDialog } from "@/components/ExportVideoDialog"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
@@ -48,6 +49,9 @@ export function Presentation() {
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+
+  // Export video dialog state
+  const [isExportVideoDialogOpen, setIsExportVideoDialogOpen] = useState(false)
 
   // Dialog states
   const [isAddPageDialogOpen, setIsAddPageDialogOpen] = useState(false)
@@ -548,6 +552,15 @@ export function Presentation() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsExportVideoDialogOpen(true)}
+              disabled={pages.length === 0}
+            >
+              <Video className="w-4 h-4 mr-1" />
+              Export MP4
+            </Button>
           </div>
         </div>
       </header>
@@ -1395,6 +1408,13 @@ export function Presentation() {
         </DialogContent>
       </Dialog>
 
+      {/* Export Video Dialog */}
+      <ExportVideoDialog
+        open={isExportVideoDialogOpen}
+        onOpenChange={setIsExportVideoDialogOpen}
+        pages={pages}
+        projectId={Number(id)}
+      />
 
     </div>
   )

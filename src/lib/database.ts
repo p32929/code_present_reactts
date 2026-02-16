@@ -201,6 +201,43 @@ export class DatabaseService {
       await db.pages.update(pageIds[i], { pageNumber: i + 1 })
     }
   }
+
+  static async createProjectWithPages(
+    name: string,
+    slides: Array<{
+      title?: string
+      description?: string
+      subtitle?: string
+      code?: string
+      codeLanguage?: string
+      image?: string
+    }>
+  ): Promise<number> {
+    const now = new Date()
+    const projectId = (await db.projects.add({
+      name,
+      createdAt: now,
+      updatedAt: now,
+    })) as number
+
+    if (slides.length > 0) {
+      const pages = slides.map((slide, i) => ({
+        projectId,
+        pageNumber: i + 1,
+        title: slide.title || '',
+        description: slide.description || '',
+        subtitle: slide.subtitle || '',
+        code: slide.code || '',
+        codeLanguage: slide.codeLanguage || 'javascript',
+        image: slide.image || '',
+        createdAt: now,
+        updatedAt: now,
+      }))
+      await db.pages.bulkAdd(pages)
+    }
+
+    return projectId
+  }
 }
 
 export { db }

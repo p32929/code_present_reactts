@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload, ChevronDown, Database, FileText, Settings, MoreVertical } from "lucide-react"
+import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload, ChevronDown, Database, FileText, Settings, MoreVertical, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
+import { GeneratePresentationDialog } from "@/components/GeneratePresentationDialog"
 
 export function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -38,6 +39,9 @@ export function Dashboard() {
   const [importError, setImportError] = useState("")
   const [isDragOver, setIsDragOver] = useState(false)
   
+  // Generate presentation states
+  const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false)
+
   // Menu states
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -739,6 +743,10 @@ export function Dashboard() {
             
             <div className="flex items-center gap-2">
               <ThemeToggle />
+              <Button variant="outline" onClick={() => setIsGenerateDialogOpen(true)}>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Generate Presentation
+              </Button>
               <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Presentation
@@ -1186,6 +1194,16 @@ export function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Generate Presentation Dialog */}
+      <GeneratePresentationDialog
+        open={isGenerateDialogOpen}
+        onOpenChange={setIsGenerateDialogOpen}
+        onComplete={async (projectId) => {
+          await loadProjects()
+          navigate(`/presentation/${projectId}`)
+        }}
+      />
 
       {/* Export Dialog */}
       <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
