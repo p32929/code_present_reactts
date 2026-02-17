@@ -21,9 +21,17 @@ export interface PresentationPage {
   updatedAt: Date
 }
 
+export interface TTSCacheEntry {
+  cacheKey: string
+  audioBlob: Blob
+  duration: number
+  createdAt: Date
+}
+
 const db = new Dexie('PresentationsDB') as Dexie & {
   projects: EntityTable<Project, 'id'>
   pages: EntityTable<PresentationPage, 'id'>
+  ttsCache: EntityTable<TTSCacheEntry, 'cacheKey'>
 }
 
 db.version(1).stores({
@@ -50,6 +58,12 @@ db.version(4).stores({
       page.subtitle = ''
     }
   })
+})
+
+db.version(5).stores({
+  projects: '++id, name, createdAt, updatedAt',
+  pages: '++id, projectId, pageNumber, createdAt, updatedAt, image, subtitle',
+  ttsCache: 'cacheKey, createdAt',
 })
 
 export class DatabaseService {
@@ -237,6 +251,28 @@ export class DatabaseService {
     }
 
     return projectId
+  }
+
+  // TTS cache methods
+  static async getTTSCache(cacheKey: string): Promise<TTSCacheEntry | undefined> {
+    return await db.ttsCache.get(cacheKey)
+  }
+
+  static async setTTSCache(cacheKey: string, audioBlob: Blob, duration: number): Promise<void> {
+    await db.ttsCache.put({
+      cacheKey,
+      audioBlob,
+      duration,
+      createdAt: new Date(),
+    })
+  }
+
+  static async getTTSCacheCount(): Promise<number> {
+    return await db.ttsCache.count()
+  }
+
+  static async clearTTSCache(): Promise<void> {
+    await db.ttsCache.clear()
   }
 }
 

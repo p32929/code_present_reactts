@@ -405,11 +405,23 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
 
   if (hasAudio && slideAudios) {
     onProgress?.('Processing audio...', 70)
+
+    // Normalize all audio to consistent format: 24kHz mono WAV
+    // This prevents artifacts when concatenating with silence gaps
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
       if (audio) {
         const audioData = await fetchFileFn(new Blob([audio.audioBlob]))
-        await ffmpeg.writeFile(`audio_${i}.mp3`, audioData)
+        await ffmpeg.writeFile(`audio_raw_${i}.wav`, audioData)
+
+        // Re-encode to consistent 24kHz mono PCM WAV
+        await ffmpeg.exec([
+          '-i', `audio_raw_${i}.wav`,
+          '-ar', '24000', '-ac', '1', '-c:a', 'pcm_s16le',
+          '-y', `audio_${i}.wav`,
+        ])
+
+        try { await ffmpeg.deleteFile(`audio_raw_${i}.wav`) } catch {}
       }
     }
   }
@@ -440,39 +452,40 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       '-y', 'video_only.mp4',
     ])
 
-    // Build audio track: real audio + silence gaps
+    // Build audio track: real audio + silence gaps (all 24kHz mono WAV)
     let audioConcat = ''
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
 
       if (audio) {
-        audioConcat += `file 'audio_${i}.mp3'\n`
+        audioConcat += `file 'audio_${i}.wav'\n`
         if (slideDelay > 0) {
           await ffmpeg.exec([
-            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+            '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',
             '-t', `${slideDelay}`,
-            '-c:a', 'aac',
-            '-y', `gap_${i}.aac`,
+            '-c:a', 'pcm_s16le',
+            '-y', `gap_${i}.wav`,
           ])
-          audioConcat += `file 'gap_${i}.aac'\n`
+          audioConcat += `file 'gap_${i}.wav'\n`
         }
       } else {
         const duration = DEFAULT_SLIDE_DURATION + slideDelay
         await ffmpeg.exec([
-          '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+          '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',
           '-t', `${duration}`,
-          '-c:a', 'aac',
-          '-y', `silence_${i}.aac`,
+          '-c:a', 'pcm_s16le',
+          '-y', `silence_${i}.wav`,
         ])
-        audioConcat += `file 'silence_${i}.aac'\n`
+        audioConcat += `file 'silence_${i}.wav'\n`
       }
     }
 
     await ffmpeg.writeFile('audio_concat.txt', audioConcat)
 
+    // Concatenate all audio segments (all same format now) then encode to AAC
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'audio_concat.txt',
-      '-c:a', 'aac',
+      '-c:a', 'aac', '-b:a', '128k',
       '-y', 'audio_full.aac',
     ])
 
@@ -501,9 +514,9 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
   // Cleanup
   for (let i = 0; i < pages.length; i++) {
     try { await ffmpeg.deleteFile(`slide_${i}.png`) } catch {}
-    try { await ffmpeg.deleteFile(`audio_${i}.mp3`) } catch {}
-    try { await ffmpeg.deleteFile(`gap_${i}.aac`) } catch {}
-    try { await ffmpeg.deleteFile(`silence_${i}.aac`) } catch {}
+    try { await ffmpeg.deleteFile(`audio_${i}.wav`) } catch {}
+    try { await ffmpeg.deleteFile(`gap_${i}.wav`) } catch {}
+    try { await ffmpeg.deleteFile(`silence_${i}.wav`) } catch {}
   }
   try { await ffmpeg.deleteFile('concat.txt') } catch {}
   try { await ffmpeg.deleteFile('output.mp4') } catch {}

@@ -1,12 +1,13 @@
 import { getAISettings, getTTSApiKeys, type TTSMode } from './aiSettings'
+import { DatabaseService } from './database'
 
 export interface SlideAudio {
   audioBlob: Blob
   duration: number // seconds
 }
 
-// In-memory cache: subtitle text -> generated audio
-const ttsCache = new Map<string, SlideAudio>()
+// L1 in-memory cache (fast, lost on refresh)
+const memCache = new Map<string, SlideAudio>()
 
 // Track which key index to start with (round-robin across calls)
 let nextKeyIndex = 0
@@ -171,6 +172,11 @@ async function callGeminiTTS(
 
 // ── Main export ──
 
+function buildCacheKey(text: string): string {
+  const settings = getAISettings()
+  return `gemini:${settings.ttsModel}:${settings.ttsVoice}:${text}`
+}
+
 export async function generateTTSForSlides(
   subtitles: string[],
   mode: TTSMode,
@@ -191,20 +197,38 @@ export async function generateTTSForSlides(
       continue
     }
 
-    // Check cache
-    const cacheKey = `gemini:${text}`
-    const cached = ttsCache.get(cacheKey)
-    if (cached) {
-      results.push(cached)
+    const cacheKey = buildCacheKey(text)
+
+    // L1: in-memory cache
+    const memCached = memCache.get(cacheKey)
+    if (memCached) {
+      results.push(memCached)
       onProgress?.(i + 1, subtitles.length)
       continue
     }
 
+    // L2: IndexedDB persistent cache
+    try {
+      const dbCached = await DatabaseService.getTTSCache(cacheKey)
+      if (dbCached) {
+        const audio: SlideAudio = { audioBlob: dbCached.audioBlob, duration: dbCached.duration }
+        memCache.set(cacheKey, audio)
+        results.push(audio)
+        onProgress?.(i + 1, subtitles.length)
+        continue
+      }
+    } catch {
+      // DB read failed, proceed to generate
+    }
+
+    // Generate fresh
     try {
       const audio = await callGeminiTTS(text, signal)
 
       if (audio) {
-        ttsCache.set(cacheKey, audio)
+        memCache.set(cacheKey, audio)
+        // Persist to IndexedDB (fire-and-forget)
+        DatabaseService.setTTSCache(cacheKey, audio.audioBlob, audio.duration).catch(() => {})
       }
       results.push(audio)
     } catch (e: any) {

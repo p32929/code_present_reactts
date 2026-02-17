@@ -139,7 +139,7 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl" onPointerDownOutside={(e) => { if (step === 'generating') e.preventDefault() }} onEscapeKeyDown={(e) => { if (step === 'generating') e.preventDefault() }}>
+      <DialogContent className="sm:max-w-2xl">
         {/* Input Step */}
         {step === 'input' && (
           <>

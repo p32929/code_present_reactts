@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { Loader2, CheckCircle, AlertCircle, Download, Video } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Loader2, CheckCircle, AlertCircle, Download, Video, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,10 +11,9 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { hasRequiredTTSSettings, type TTSMode } from '@/lib/aiSettings'
-
 import { generateTTSForSlides } from '@/lib/ttsService'
 import { exportToMP4 } from '@/lib/videoExport'
-import type { PresentationPage } from '@/lib/database'
+import { DatabaseService, type PresentationPage } from '@/lib/database'
 
 type Step = 'config' | 'exporting' | 'complete' | 'error'
 
@@ -29,13 +28,23 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
   const [step, setStep] = useState<Step>('config')
   const [ttsMode, setTTSMode] = useState<TTSMode>('none')
   const [resolution, setResolution] = useState<'1080p' | '720p'>('1080p')
-  const [slideDelay, setSlideDelay] = useState(1.5)
+  const [slideDelay, setSlideDelay] = useState(() => {
+    const saved = localStorage.getItem('export-slide-delay')
+    return saved ? Number(saved) : 0.4
+  })
   const [progressMessage, setProgressMessage] = useState('')
   const [progressPercent, setProgressPercent] = useState(0)
   const [error, setError] = useState('')
   const [ffmpegLog, setFfmpegLog] = useState('')
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const [ttsCacheCount, setTtsCacheCount] = useState(0)
+
+  useEffect(() => {
+    if (open) {
+      DatabaseService.getTTSCacheCount().then(setTtsCacheCount).catch(() => {})
+    }
+  }, [open])
 
   const resetState = () => {
     setStep('config')
@@ -174,6 +183,21 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
                 </p>
               </div>
 
+              {/* Clear audio cache */}
+              {ttsMode === 'gemini' && ttsConfigured && ttsCacheCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await DatabaseService.clearTTSCache()
+                    setTtsCacheCount(0)
+                  }}
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Clear audio cache ({ttsCacheCount})
+                </Button>
+              )}
+
               {/* TTS not configured warning */}
               {ttsMode === 'gemini' && !ttsConfigured && (
                 <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
@@ -209,7 +233,11 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
                   max={5}
                   step={0.1}
                   value={slideDelay}
-                  onChange={(e) => setSlideDelay(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setSlideDelay(val)
+                    localStorage.setItem('export-slide-delay', String(val))
+                  }}
                   className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
                 />
                 <p className="text-xs text-muted-foreground">

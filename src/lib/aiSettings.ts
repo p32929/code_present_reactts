@@ -16,8 +16,8 @@ const DEFAULTS: AISettings = {
   textGenApiKey: '',
   textGenModel: '',
   ttsApiKeys: '',
-  ttsModel: '',
-  ttsVoice: '',
+  ttsModel: 'gemini-2.5-flash-preview-tts',
+  ttsVoice: 'Algenib',
 }
 
 export function getAISettings(): AISettings {
