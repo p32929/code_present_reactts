@@ -7,6 +7,9 @@ export interface AISettings {
   ttsApiKeys: string
   ttsModel: string
   ttsVoice: string
+  imageGenBaseUrl: string
+  imageGenApiKey: string
+  imageGenModels: string
 }
 
 const PREFIX = 'ai-settings-'
@@ -18,6 +21,9 @@ const DEFAULTS: AISettings = {
   ttsApiKeys: '',
   ttsModel: 'gemini-2.5-flash-preview-tts',
   ttsVoice: 'Algenib',
+  imageGenBaseUrl: '',
+  imageGenApiKey: '',
+  imageGenModels: '',
 }
 
 export function getAISettings(): AISettings {
@@ -28,6 +34,9 @@ export function getAISettings(): AISettings {
     ttsApiKeys: localStorage.getItem(`${PREFIX}ttsApiKeys`) || DEFAULTS.ttsApiKeys,
     ttsModel: localStorage.getItem(`${PREFIX}ttsModel`) || DEFAULTS.ttsModel,
     ttsVoice: localStorage.getItem(`${PREFIX}ttsVoice`) || DEFAULTS.ttsVoice,
+    imageGenBaseUrl: localStorage.getItem(`${PREFIX}imageGenBaseUrl`) || DEFAULTS.imageGenBaseUrl,
+    imageGenApiKey: localStorage.getItem(`${PREFIX}imageGenApiKey`) || DEFAULTS.imageGenApiKey,
+    imageGenModels: localStorage.getItem(`${PREFIX}imageGenModels`) || DEFAULTS.imageGenModels,
   }
 }
 
@@ -56,4 +65,17 @@ export function hasRequiredTTSSettings(): boolean {
   const keys = getTTSApiKeys()
   const s = getAISettings()
   return keys.length > 0 && !!s.ttsModel && !!s.ttsVoice
+}
+
+export function getImageGenModels(): string[] {
+  const s = getAISettings()
+  return s.imageGenModels
+    .split('\n')
+    .map((m) => m.trim())
+    .filter(Boolean)
+}
+
+export function hasRequiredImageGenSettings(): boolean {
+  const s = getAISettings()
+  return !!(s.imageGenBaseUrl && s.imageGenApiKey && getImageGenModels().length > 0)
 }

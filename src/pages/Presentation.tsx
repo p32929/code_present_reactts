@@ -1,13 +1,15 @@
 import { useParams, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useCallback } from "react"
-import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare, Check, Video } from "lucide-react"
+import { ArrowLeft, Plus, Trash2, Type, FileText, Code2, Play, ChevronLeft, ChevronRight, Copy, X, Image, CheckSquare, Square, Save, RotateCcw, GripVertical, MessageSquare, Check, Video, Sparkles, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
+import { DatabaseService, type Project, type PresentationPage, type GeneratedImage } from "@/lib/database"
+import { hasRequiredImageGenSettings, getImageGenModels } from "@/lib/aiSettings"
+import { generateImageWithModel } from "@/lib/imageGenService"
 import { ExportVideoDialog } from "@/components/ExportVideoDialog"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -81,6 +83,14 @@ export function Presentation() {
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
+  // Image generation states
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false)
+  const [loadingModels, setLoadingModels] = useState<Set<string>>(new Set())
+  const [imageGenError, setImageGenError] = useState('')
+  const [imageGenPrompt, setImageGenPrompt] = useState('')
+  const imageGenAbortRef = useRef<AbortController | null>(null)
+
   // Drag and drop states for slide reordering
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
@@ -120,6 +130,116 @@ export function Presentation() {
     }
   }, [])
 
+
+  // Load cached generated images and restore prompt when slide changes
+  const currentPageId = pages[currentPageIndex]?.id
+  useEffect(() => {
+    const page = pages[currentPageIndex]
+    if (currentPageId) {
+      DatabaseService.getGeneratedImages(currentPageId).then((cached) => {
+        setGeneratedImages(cached)
+        // Restore prompt: use the prompt from cached images if available, else use page.image if it's text
+        if (cached.length > 0) {
+          setImageGenPrompt(cached[0].prompt)
+        } else if (page?.image && !(page.image.startsWith('http') || page.image.startsWith('data:image') || page.image.startsWith('/') || page.image.startsWith('./'))) {
+          setImageGenPrompt(page.image)
+        } else {
+          setImageGenPrompt('')
+        }
+      }).catch(() => {
+        setGeneratedImages([])
+        setImageGenPrompt('')
+      })
+    } else {
+      setGeneratedImages([])
+      setImageGenPrompt('')
+    }
+    setImageGenError('')
+    setLoadingModels(new Set())
+    setIsGeneratingImages(false)
+    imageGenAbortRef.current?.abort()
+    imageGenAbortRef.current = null
+  }, [currentPageId])
+
+  const handleGenerateImages = async () => {
+    const page = getCurrentPage()
+    if (!page?.id || !imageGenPrompt.trim()) return
+
+    const models = getImageGenModels()
+    if (models.length === 0) return
+
+    const controller = new AbortController()
+    imageGenAbortRef.current = controller
+
+    setIsGeneratingImages(true)
+    setLoadingModels(new Set(models))
+    setImageGenError('')
+
+    const pageId = page.id
+    const prompt = imageGenPrompt.trim()
+    let errorMessages: string[] = []
+
+    const promises = models.map(async (model) => {
+      try {
+        const result = await generateImageWithModel(prompt, model, controller.signal)
+        if (controller.signal.aborted) return
+
+        await DatabaseService.saveGeneratedImage({
+          pageId,
+          model,
+          prompt,
+          imageData: result,
+          createdAt: new Date(),
+        })
+
+        // Refresh from DB and update UI immediately
+        const cached = await DatabaseService.getGeneratedImages(pageId)
+        setGeneratedImages(cached)
+      } catch (e: any) {
+        if (e.name !== 'AbortError') {
+          errorMessages.push(e.message || `${model}: Unknown error`)
+          setImageGenError(errorMessages.join('\n'))
+        }
+      } finally {
+        setLoadingModels((prev) => {
+          const next = new Set(prev)
+          next.delete(model)
+          return next
+        })
+      }
+    })
+
+    await Promise.allSettled(promises)
+    setIsGeneratingImages(false)
+    imageGenAbortRef.current = null
+  }
+
+  const handleSelectGeneratedImage = async (imageData: string) => {
+    const page = getCurrentPage()
+    if (!page?.id) return
+
+    await DatabaseService.updatePage(page.id, { image: imageData })
+    await loadPages(project!.id!)
+    triggerAutoSave()
+  }
+
+  const handleClearGeneratedImages = async () => {
+    const page = getCurrentPage()
+    if (!page?.id) return
+
+    // If current image is one of the generated ones, revert to the prompt text
+    const isUsingGenerated = generatedImages.some((img) => img.imageData === page.image)
+    if (isUsingGenerated && imageGenPrompt) {
+      await DatabaseService.updatePage(page.id, { image: imageGenPrompt })
+    }
+
+    await DatabaseService.deleteGeneratedImagesForPage(page.id)
+    setGeneratedImages([])
+    if (isUsingGenerated && imageGenPrompt) {
+      await loadPages(project!.id!)
+      triggerAutoSave()
+    }
+  }
 
   const loadProject = async () => {
     if (!id || isNaN(Number(id))) {
@@ -977,42 +1097,130 @@ export function Presentation() {
               )}
 
               {currentPage?.image && (
-                <div className="group relative flex justify-center">
-                  {currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? (
-                    <img 
-                      src={currentPage.image} 
-                      alt="Slide content" 
-                      className="max-w-full max-h-96 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                <div className="space-y-3">
+                  <div className="group relative flex justify-center">
+                    {currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? (
+                      <img
+                        src={currentPage.image}
+                        alt="Slide content"
+                        className="max-w-full max-h-96 object-contain rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleEditContent('image')}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          if (target.nextElementSibling) {
+                            (target.nextElementSibling as HTMLElement).style.display = 'block';
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`${currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'hidden' : 'block'} max-w-full p-6 bg-muted/50 rounded-lg border border-border cursor-pointer hover:bg-muted/70 transition-colors`}
+                      style={{ display: currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'none' : 'block' }}
                       onClick={() => handleEditContent('image')}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        if (target.nextElementSibling) {
-                          (target.nextElementSibling as HTMLElement).style.display = 'block';
-                        }
+                    >
+                      <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground break-words">
+                        {currentPage.image}
+                      </pre>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteContent('image')
                       }}
-                    />
-                  ) : null}
-                  <div 
-                    className={`${currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'hidden' : 'block'} max-w-full p-6 bg-muted/50 rounded-lg border border-border cursor-pointer hover:bg-muted/70 transition-colors`}
-                    style={{ display: currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./') ? 'none' : 'block' }}
-                    onClick={() => handleEditContent('image')}
-                  >
-                    <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground break-words">
-                      {currentPage.image}
-                    </pre>
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-red-500/20 hover:text-red-400 bg-black/50"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteContent('image')
-                    }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-red-500/20 hover:text-red-400 bg-black/50"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+
+                  {/* Generate Images button */}
+                  {(generatedImages.length > 0 || loadingModels.size > 0 || !(currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./'))) && (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={hasRequiredImageGenSettings() ? handleGenerateImages : undefined}
+                          disabled={isGeneratingImages || !hasRequiredImageGenSettings() || !imageGenPrompt.trim()}
+                          className="border-white/20 text-white hover:bg-white/10"
+                        >
+                          {isGeneratingImages ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4 mr-2" />
+                          )}
+                          {isGeneratingImages ? 'Generating...' : generatedImages.length > 0 ? 'Regenerate' : 'Generate Images'}
+                        </Button>
+                        {generatedImages.length > 0 && !isGeneratingImages && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleClearGeneratedImages}
+                            className="border-white/20 text-white hover:bg-red-500/20 hover:text-red-400"
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      {!hasRequiredImageGenSettings() && (
+                        <p className="text-[11px] text-white/40">Configure image gen settings in Generate Presentation &gt; Settings</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Image generation error */}
+                  {imageGenError && (
+                    <div className="mx-auto max-w-lg bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                      <pre className="text-xs text-red-400 whitespace-pre-wrap">{imageGenError}</pre>
+                    </div>
+                  )}
+
+                  {/* Generated images picker */}
+                  {(generatedImages.length > 0 || loadingModels.size > 0) && (
+                    <div className="mx-auto max-w-3xl">
+                      <p className="text-xs text-white/50 mb-2 text-center">Generated images (click to use)</p>
+                      <div className="flex gap-3 overflow-x-auto pb-2">
+                        {generatedImages.map((img) => (
+                          <div
+                            key={img.id}
+                            onClick={() => handleSelectGeneratedImage(img.imageData)}
+                            className={`flex-shrink-0 cursor-pointer rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
+                              currentPage.image === img.imageData
+                                ? 'border-primary ring-2 ring-primary/30'
+                                : 'border-white/10 hover:border-white/30'
+                            }`}
+                          >
+                            <img
+                              src={img.imageData}
+                              alt={`Generated by ${img.model}`}
+                              className="w-24 h-24 object-cover"
+                            />
+                            <p className="text-[10px] text-white/60 text-center py-1 px-1 truncate bg-black/50">
+                              {img.model}
+                            </p>
+                          </div>
+                        ))}
+                        {/* Loading placeholders for in-flight models */}
+                        {[...loadingModels].map((model) => (
+                          <div
+                            key={`loading-${model}`}
+                            className="flex-shrink-0 rounded-lg overflow-hidden border-2 border-white/10"
+                          >
+                            <div className="w-24 h-24 flex items-center justify-center bg-white/5">
+                              <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+                            </div>
+                            <p className="text-[10px] text-white/40 text-center py-1 px-1 truncate bg-black/50">
+                              {model}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               

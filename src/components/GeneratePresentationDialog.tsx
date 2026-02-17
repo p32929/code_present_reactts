@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Settings, Upload, Loader2, CheckCircle, AlertCircle, Sparkles } from 'lucide-react'
+import { Settings, Upload, Loader2, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -37,6 +37,9 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
 
   // Settings state
   const [settings, setSettings] = useState(() => getAISettings())
+  const [showTextGenKey, setShowTextGenKey] = useState(false)
+  const [showTtsKeys, setShowTtsKeys] = useState(false)
+  const [showImageGenKey, setShowImageGenKey] = useState(false)
 
   const resetState = () => {
     setStep('input')
@@ -114,7 +117,7 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
         subtitle: slide.subtitle,
         code: slide.code,
         codeLanguage: slide.codeLanguage,
-        image: '',
+        image: slide.image || '',
       }))
 
       const projectId = await DatabaseService.createProjectWithPages(
@@ -284,12 +287,22 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">API Key</label>
-                  <Input
-                    type="password"
-                    placeholder="sk-..."
-                    value={settings.textGenApiKey}
-                    onChange={(e) => setSettings({ ...settings, textGenApiKey: e.target.value })}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showTextGenKey ? 'text' : 'password'}
+                      placeholder="sk-..."
+                      value={settings.textGenApiKey}
+                      onChange={(e) => setSettings({ ...settings, textGenApiKey: e.target.value })}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTextGenKey(!showTextGenKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showTextGenKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Model</label>
@@ -303,12 +316,22 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
               <div className="border-t pt-4 space-y-4">
                 <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gemini TTS (Optional)</h4>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">API Keys</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">API Keys</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowTtsKeys(!showTtsKeys)}
+                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showTtsKeys ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                   <textarea
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     placeholder={"AIzaSy...\nAIzaSy...\nOne key per line"}
                     value={settings.ttsApiKeys}
                     onChange={(e) => setSettings({ ...settings, ttsApiKeys: e.target.value })}
+                    style={!showTtsKeys && settings.ttsApiKeys ? { WebkitTextSecurity: 'disc' } as React.CSSProperties : undefined}
                   />
                   <p className="text-xs text-muted-foreground">
                     One Gemini API key per line. If one key fails, the next one is tried automatically.
@@ -329,6 +352,49 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
                     value={settings.ttsVoice}
                     onChange={(e) => setSettings({ ...settings, ttsVoice: e.target.value })}
                   />
+                </div>
+              </div>
+
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Image Generation (OpenAI-compatible, Optional)</h4>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Base URL</label>
+                  <Input
+                    placeholder="https://your-image-api.com/v1"
+                    value={settings.imageGenBaseUrl}
+                    onChange={(e) => setSettings({ ...settings, imageGenBaseUrl: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">API Key</label>
+                  <div className="relative">
+                    <Input
+                      type={showImageGenKey ? 'text' : 'password'}
+                      placeholder="sk-..."
+                      value={settings.imageGenApiKey}
+                      onChange={(e) => setSettings({ ...settings, imageGenApiKey: e.target.value })}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowImageGenKey(!showImageGenKey)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showImageGenKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Models</label>
+                  <textarea
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    placeholder={"dall-e-3\nstable-diffusion-xl\nOne model per line"}
+                    value={settings.imageGenModels}
+                    onChange={(e) => setSettings({ ...settings, imageGenModels: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    One model name per line. All models are called in parallel when generating images.
+                  </p>
                 </div>
               </div>
 

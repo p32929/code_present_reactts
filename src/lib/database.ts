@@ -28,10 +28,20 @@ export interface TTSCacheEntry {
   createdAt: Date
 }
 
+export interface GeneratedImage {
+  id?: number
+  pageId: number
+  model: string
+  prompt: string
+  imageData: string
+  createdAt: Date
+}
+
 const db = new Dexie('PresentationsDB') as Dexie & {
   projects: EntityTable<Project, 'id'>
   pages: EntityTable<PresentationPage, 'id'>
   ttsCache: EntityTable<TTSCacheEntry, 'cacheKey'>
+  generatedImages: EntityTable<GeneratedImage, 'id'>
 }
 
 db.version(1).stores({
@@ -64,6 +74,13 @@ db.version(5).stores({
   projects: '++id, name, createdAt, updatedAt',
   pages: '++id, projectId, pageNumber, createdAt, updatedAt, image, subtitle',
   ttsCache: 'cacheKey, createdAt',
+})
+
+db.version(6).stores({
+  projects: '++id, name, createdAt, updatedAt',
+  pages: '++id, projectId, pageNumber, createdAt, updatedAt, image, subtitle',
+  ttsCache: 'cacheKey, createdAt',
+  generatedImages: '++id, pageId, model, createdAt',
 })
 
 export class DatabaseService {
@@ -273,6 +290,19 @@ export class DatabaseService {
 
   static async clearTTSCache(): Promise<void> {
     await db.ttsCache.clear()
+  }
+
+  // Generated images methods
+  static async getGeneratedImages(pageId: number): Promise<GeneratedImage[]> {
+    return await db.generatedImages.where('pageId').equals(pageId).toArray()
+  }
+
+  static async saveGeneratedImage(entry: Omit<GeneratedImage, 'id'>): Promise<number> {
+    return (await db.generatedImages.add(entry)) as number
+  }
+
+  static async deleteGeneratedImagesForPage(pageId: number): Promise<void> {
+    await db.generatedImages.where('pageId').equals(pageId).delete()
   }
 }
 
