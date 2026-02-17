@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ThemeToggle } from "@/components/theme-toggle"
 import { DatabaseService, type Project, type PresentationPage } from "@/lib/database"
 import { GeneratePresentationDialog } from "@/components/GeneratePresentationDialog"
+import { getAISettings, saveAISettings } from "@/lib/aiSettings"
 
 export function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -311,29 +312,6 @@ export function Dashboard() {
     }
   }
 
-  const handleImportSettings = async (file: File) => {
-    try {
-      const fileContent = await file.text()
-      const importData = JSON.parse(fileContent)
-
-      // Validate the import data structure
-      if (typeof importData !== 'object' || !importData.titleTopSpacing) {
-        throw new Error("Invalid file format. Expected a settings JSON file.")
-      }
-
-      // Import settings
-      Object.entries(importData).forEach(([key, value]) => {
-        if (key !== 'exportedAt' && typeof value === 'string') {
-          localStorage.setItem(`presentation-settings-${key}`, value)
-        }
-      })
-
-    } catch (error) {
-      console.error('Failed to import settings:', error)
-      throw error
-    }
-  }
-
   const handleUnifiedImport = async (file: File) => {
     try {
       const fileContent = await file.text()
@@ -356,10 +334,19 @@ export function Dashboard() {
         setImportFile(file)
         await handleConfirmImport()
         return 'Imported single presentation'
-      } else if (importData.titleTopSpacing && typeof importData === 'object') {
-        // Settings export
+      } else if (importData.ai || importData.presentation) {
+        // New settings format (export settings from menu)
         console.log('Detected: Settings file')
         await handleImportSettings(file)
+        return 'Imported settings. Refresh the page for all changes to take effect.'
+      } else if (importData.titleTopSpacing && typeof importData === 'object') {
+        // Legacy settings format
+        console.log('Detected: Legacy settings file')
+        Object.entries(importData).forEach(([key, value]) => {
+          if (key !== 'exportedAt' && typeof value === 'string') {
+            localStorage.setItem(`presentation-settings-${key}`, value)
+          }
+        })
         return 'Imported settings'
       } else {
         throw new Error("Unknown file format. Please ensure you're importing a valid CodePresent export file.")
@@ -478,6 +465,67 @@ export function Dashboard() {
       } catch (error) {
         console.error('Failed to delete project:', error)
       }
+    }
+  }
+
+  const handleExportSettings = () => {
+    const allSettings = {
+      ai: getAISettings(),
+      presentation: {
+        titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
+        descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
+        imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
+        codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
+        subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8',
+        titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
+        descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
+        subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
+      },
+      export: {
+        slideDelay: localStorage.getItem('export-slide-delay') || '0.4',
+      },
+      theme: localStorage.getItem('presentations-ui-theme') || 'system',
+      exportedAt: new Date().toISOString(),
+    }
+
+    const blob = new Blob([JSON.stringify(allSettings, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `codepresent-settings-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportSettings = async (file: File) => {
+    try {
+      const data = JSON.parse(await file.text())
+
+      if (data.ai) {
+        saveAISettings(data.ai)
+      }
+
+      if (data.presentation) {
+        for (const [key, value] of Object.entries(data.presentation)) {
+          localStorage.setItem(`presentation-settings-${key}`, String(value))
+        }
+      }
+
+      if (data.export) {
+        if (data.export.slideDelay) {
+          localStorage.setItem('export-slide-delay', String(data.export.slideDelay))
+        }
+      }
+
+      if (data.theme) {
+        localStorage.setItem('presentations-ui-theme', data.theme)
+      }
+
+      alert('Settings imported successfully. Refresh the page for all changes to take effect.')
+    } catch {
+      alert('Invalid settings file.')
     }
   }
 
@@ -638,7 +686,7 @@ export function Dashboard() {
                   <MoreVertical className="w-4 h-4" />
                 </Button>
                 {isMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-50">
+                  <div className="absolute right-0 top-full mt-1 w-56 bg-background border border-border rounded-md shadow-lg z-50">
                     <div className="py-1">
                       <input
                         type="file"
@@ -665,22 +713,57 @@ export function Dashboard() {
                           className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
                         >
                           <Upload className="w-4 h-4 mr-3" />
-                          Import
+                          Import Presentations
                         </button>
                       </label>
-                      
+
+                      {projects.length > 0 && (
+                        <button
+                          onClick={() => {
+                            setIsExportDialogOpen(true)
+                            setIsMenuOpen(false)
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                        >
+                          <Download className="w-4 h-4 mr-3" />
+                          Export Presentations
+                        </button>
+                      )}
+
+                      <div className="border-t border-border my-1"></div>
+
+                      <button
+                        onClick={() => {
+                          handleExportSettings()
+                          setIsMenuOpen(false)
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                      >
+                        <Settings className="w-4 h-4 mr-3" />
+                        Export Settings
+                      </button>
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (file) await handleImportSettings(file)
+                          setIsMenuOpen(false)
+                          e.target.value = ''
+                        }}
+                        className="hidden"
+                        id="settings-import-input"
+                      />
+                      <button
+                        onClick={() => document.getElementById('settings-import-input')?.click()}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
+                      >
+                        <Settings className="w-4 h-4 mr-3" />
+                        Import Settings
+                      </button>
+
                       {projects.length > 0 && (
                         <>
-                          <button
-                            onClick={() => {
-                              setIsExportDialogOpen(true)
-                              setIsMenuOpen(false)
-                            }}
-                            className="w-full px-4 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground flex items-center"
-                          >
-                            <Download className="w-4 h-4 mr-3" />
-                            Export
-                          </button>
                           <div className="border-t border-border my-1"></div>
                           <button
                             onClick={() => {

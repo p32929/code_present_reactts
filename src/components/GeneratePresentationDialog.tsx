@@ -61,6 +61,7 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
     setStep('input')
   }
 
+
   const handleZipFile = (file: File) => {
     if (file.name.endsWith('.zip') || file.type === 'application/zip') {
       setZipFile(file)
