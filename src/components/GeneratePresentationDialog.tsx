@@ -13,7 +13,6 @@ import {
 import { getAISettings, saveAISettings, hasRequiredTextGenSettings } from '@/lib/aiSettings'
 import { parseGitHubUrl, fetchGitHubRepo, parseZipFile } from '@/lib/repoParser'
 import { generatePresentation } from '@/lib/aiService'
-import { generateImagesForSlides } from '@/lib/imageGenService'
 import { DatabaseService } from '@/lib/database'
 
 type Step = 'input' | 'settings' | 'generating' | 'complete' | 'error'
@@ -104,31 +103,17 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
 
       if (controller.signal.aborted) return
 
-      // Step 3: Generate images (optional)
-      setProgressMessage('Creating images...')
-      setProgressPercent(60)
-
-      const slidesWithImages = await generateImagesForSlides(
-        presentation.slides,
-        (current, total) => {
-          setProgressPercent(60 + (20 * current) / total)
-        },
-        controller.signal
-      )
-
-      if (controller.signal.aborted) return
-
-      // Step 4: Save to database
+      // Step 3: Save to database
       setProgressMessage('Saving presentation...')
       setProgressPercent(85)
 
-      const dbSlides = slidesWithImages.map((slide) => ({
+      const dbSlides = presentation.slides.map((slide) => ({
         title: slide.title,
         description: slide.description,
         subtitle: slide.subtitle,
         code: slide.code,
         codeLanguage: slide.codeLanguage,
-        image: slide.image || '',
+        image: '',
       }))
 
       const projectId = await DatabaseService.createProjectWithPages(
@@ -154,7 +139,7 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl" onPointerDownOutside={(e) => { if (step === 'generating') e.preventDefault() }} onEscapeKeyDown={(e) => { if (step === 'generating') e.preventDefault() }}>
         {/* Input Step */}
         {step === 'input' && (
           <>
@@ -310,34 +295,6 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
                   <Input
                     value={settings.textGenModel}
                     onChange={(e) => setSettings({ ...settings, textGenModel: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="border-t pt-4 space-y-4">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Image Generation (Optional)</h4>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Base URL</label>
-                  <Input
-                    placeholder="https://your-api.com/base-path"
-                    value={settings.imageGenBaseUrl}
-                    onChange={(e) => setSettings({ ...settings, imageGenBaseUrl: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">API Key</label>
-                  <Input
-                    type="password"
-                    placeholder="sk-..."
-                    value={settings.imageGenApiKey}
-                    onChange={(e) => setSettings({ ...settings, imageGenApiKey: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Model</label>
-                  <Input
-                    value={settings.imageGenModel}
-                    onChange={(e) => setSettings({ ...settings, imageGenModel: e.target.value })}
                   />
                 </div>
               </div>

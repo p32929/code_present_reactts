@@ -1,135 +1,173 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg'
-import { fetchFile } from '@ffmpeg/util'
-import html2canvas from 'html2canvas'
 import type { PresentationPage } from './database'
 import type { SlideAudio } from './ttsService'
 
-let ffmpegInstance: FFmpeg | null = null
+let ffmpegInstance: any = null
+let fetchFileFn: any = null
+
+async function createBlobURL(url: string, mimeType: string): Promise<string> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`)
+  const buf = await res.arrayBuffer()
+  const blob = new Blob([buf], { type: mimeType })
+  return URL.createObjectURL(blob)
+}
 
 async function getFFmpeg(
   onLog?: (msg: string) => void
-): Promise<FFmpeg> {
-  if (ffmpegInstance && ffmpegInstance.loaded) return ffmpegInstance
+) {
+  if (ffmpegInstance?.loaded) return ffmpegInstance
+
+  // Dynamic imports — only loaded when export is actually triggered
+  const [{ FFmpeg }, { fetchFile }] = await Promise.all([
+    import('@ffmpeg/ffmpeg'),
+    import('@ffmpeg/util'),
+  ])
+
+  fetchFileFn = fetchFile
 
   const ffmpeg = new FFmpeg()
 
   if (onLog) {
-    ffmpeg.on('log', ({ message }) => onLog(message))
+    ffmpeg.on('log', ({ message }: { message: string }) => onLog(message))
   }
 
-  await ffmpeg.load({
-    coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-    wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm',
-  })
+  const coreURL = await createBlobURL('/ffmpeg-core.js', 'text/javascript')
+  const wasmURL = await createBlobURL('/ffmpeg-core.wasm', 'application/wasm')
+  await ffmpeg.load({ coreURL, wasmURL })
 
   ffmpegInstance = ffmpeg
   return ffmpeg
 }
 
+const DEFAULT_SLIDE_DURATION = 4 // seconds for slides without audio
+
 export interface ExportOptions {
   pages: PresentationPage[]
   slideAudios: (SlideAudio | null)[] | null
   resolution: '1080p' | '720p'
-  defaultSlideDuration: number // seconds
+  slideDelay: number // seconds of pause between slides
   onProgress?: (step: string, progress: number) => void
   onLog?: (msg: string) => void
   signal?: AbortSignal
 }
 
-function createSlideElement(
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  const words = text.split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line)
+      line = word
+    } else {
+      line = test
+    }
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+function renderSlideToCanvas(
   page: PresentationPage,
   width: number,
   height: number
-): HTMLDivElement {
-  const container = document.createElement('div')
-  container.style.width = `${width}px`
-  container.style.height = `${height}px`
-  container.style.backgroundColor = '#000000'
-  container.style.color = '#ffffff'
-  container.style.display = 'flex'
-  container.style.flexDirection = 'column'
-  container.style.justifyContent = 'center'
-  container.style.alignItems = 'center'
-  container.style.padding = '60px'
-  container.style.boxSizing = 'border-box'
-  container.style.fontFamily = 'system-ui, -apple-system, sans-serif'
-  container.style.position = 'absolute'
-  container.style.left = '-9999px'
-  container.style.top = '0'
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
 
-  const inner = document.createElement('div')
-  inner.style.maxWidth = '90%'
-  inner.style.width = '100%'
-  inner.style.textAlign = 'center'
+  // Background
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, width, height)
 
+  const pad = 80
+  const contentWidth = width - pad * 2
+  let y = height * 0.15
+
+  // Title
   if (page.title) {
-    const title = document.createElement('h1')
-    title.textContent = page.title
-    title.style.fontSize = '64px'
-    title.style.fontWeight = 'bold'
-    title.style.marginBottom = '24px'
-    title.style.lineHeight = '1.2'
-    title.style.textTransform = 'capitalize'
-    inner.appendChild(title)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 56px system-ui, -apple-system, sans-serif'
+    ctx.textAlign = 'center'
+    const lines = wrapText(ctx, page.title, contentWidth)
+    for (const line of lines) {
+      ctx.fillText(line, width / 2, y)
+      y += 68
+    }
+    y += 12
   }
 
+  // Description
   if (page.description) {
-    const desc = document.createElement('p')
-    desc.textContent = page.description
-    desc.style.fontSize = '36px'
-    desc.style.opacity = '0.9'
-    desc.style.lineHeight = '1.5'
-    desc.style.marginBottom = '24px'
-    desc.style.textTransform = 'capitalize'
-    inner.appendChild(desc)
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.font = '32px system-ui, -apple-system, sans-serif'
+    ctx.textAlign = 'center'
+    const lines = wrapText(ctx, page.description, contentWidth)
+    for (const line of lines) {
+      ctx.fillText(line, width / 2, y)
+      y += 42
+    }
+    y += 20
   }
 
-  if (page.image) {
-    if (page.image.startsWith('http') || page.image.startsWith('data:image') || page.image.startsWith('/')) {
-      const img = document.createElement('img')
-      img.src = page.image
-      img.style.maxWidth = '80%'
-      img.style.maxHeight = '500px'
-      img.style.objectFit = 'contain'
-      img.style.borderRadius = '12px'
-      img.style.margin = '24px auto'
-      img.style.display = 'block'
-      inner.appendChild(img)
+  // Code block
+  if (page.code) {
+    const codeLines = page.code.split('\n').slice(0, 20)
+    const codeFontSize = 18
+    const lineHeight = codeFontSize * 1.6
+    const codeBlockH = codeLines.length * lineHeight + 40
+    const codeBlockW = contentWidth
+    const codeX = pad
+    const codeY = y
+
+    // Code background
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)'
+    const r = 12
+    ctx.beginPath()
+    ctx.moveTo(codeX + r, codeY)
+    ctx.lineTo(codeX + codeBlockW - r, codeY)
+    ctx.quadraticCurveTo(codeX + codeBlockW, codeY, codeX + codeBlockW, codeY + r)
+    ctx.lineTo(codeX + codeBlockW, codeY + codeBlockH - r)
+    ctx.quadraticCurveTo(codeX + codeBlockW, codeY + codeBlockH, codeX + codeBlockW - r, codeY + codeBlockH)
+    ctx.lineTo(codeX + r, codeY + codeBlockH)
+    ctx.quadraticCurveTo(codeX, codeY + codeBlockH, codeX, codeY + codeBlockH - r)
+    ctx.lineTo(codeX, codeY + r)
+    ctx.quadraticCurveTo(codeX, codeY, codeX + r, codeY)
+    ctx.closePath()
+    ctx.fill()
+
+    // Code text
+    ctx.fillStyle = '#e2e8f0'
+    ctx.font = `${codeFontSize}px ui-monospace, "Cascadia Code", "Fira Code", monospace`
+    ctx.textAlign = 'left'
+    let codeTextY = codeY + 28
+    for (const line of codeLines) {
+      ctx.fillText(line, codeX + 20, codeTextY, codeBlockW - 40)
+      codeTextY += lineHeight
+    }
+
+    y = codeY + codeBlockH + 24
+  }
+
+  // Subtitle
+  if (page.subtitle) {
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.font = 'italic 24px system-ui, -apple-system, sans-serif'
+    ctx.textAlign = 'center'
+    const lines = wrapText(ctx, page.subtitle, contentWidth)
+    for (const line of lines) {
+      ctx.fillText(line, width / 2, y)
+      y += 34
     }
   }
 
-  if (page.code) {
-    const codeBlock = document.createElement('pre')
-    codeBlock.style.backgroundColor = 'rgba(15, 23, 42, 0.95)'
-    codeBlock.style.padding = '24px'
-    codeBlock.style.borderRadius = '12px'
-    codeBlock.style.fontSize = '20px'
-    codeBlock.style.lineHeight = '1.5'
-    codeBlock.style.textAlign = 'left'
-    codeBlock.style.overflow = 'hidden'
-    codeBlock.style.maxHeight = '500px'
-    codeBlock.style.marginTop = '24px'
-    codeBlock.style.fontFamily = 'ui-monospace, monospace'
-
-    const codeEl = document.createElement('code')
-    codeEl.textContent = page.code
-    codeBlock.appendChild(codeEl)
-    inner.appendChild(codeBlock)
-  }
-
-  if (page.subtitle) {
-    const subtitle = document.createElement('p')
-    subtitle.textContent = page.subtitle
-    subtitle.style.fontSize = '28px'
-    subtitle.style.opacity = '0.7'
-    subtitle.style.fontStyle = 'italic'
-    subtitle.style.marginTop = '32px'
-    subtitle.style.lineHeight = '1.6'
-    inner.appendChild(subtitle)
-  }
-
-  container.appendChild(inner)
-  return container
+  return canvas
 }
 
 async function renderSlideToImage(
@@ -137,42 +175,13 @@ async function renderSlideToImage(
   width: number,
   height: number
 ): Promise<Uint8Array> {
-  const el = createSlideElement(page, width, height)
-  document.body.appendChild(el)
+  const canvas = renderSlideToCanvas(page, width, height)
 
-  try {
-    // Wait for images to load
-    const images = el.querySelectorAll('img')
-    if (images.length > 0) {
-      await Promise.all(
-        Array.from(images).map(
-          (img) =>
-            new Promise<void>((resolve) => {
-              if (img.complete) return resolve()
-              img.onload = () => resolve()
-              img.onerror = () => resolve()
-            })
-        )
-      )
-    }
+  const blob = await new Promise<Blob>((resolve) =>
+    canvas.toBlob((b) => resolve(b!), 'image/png')
+  )
 
-    const canvas = await html2canvas(el, {
-      width,
-      height,
-      scale: 1,
-      backgroundColor: '#000000',
-      logging: false,
-      useCORS: true,
-    })
-
-    const blob = await new Promise<Blob>((resolve) =>
-      canvas.toBlob((b) => resolve(b!), 'image/png')
-    )
-
-    return new Uint8Array(await blob.arrayBuffer())
-  } finally {
-    document.body.removeChild(el)
-  }
+  return new Uint8Array(await blob.arrayBuffer())
 }
 
 export async function exportToMP4(options: ExportOptions): Promise<Blob> {
@@ -180,7 +189,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     pages,
     slideAudios,
     resolution,
-    defaultSlideDuration,
+    slideDelay,
     onProgress,
     onLog,
     signal,
@@ -218,7 +227,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
       if (audio) {
-        const audioData = await fetchFile(new Blob([audio.audioBlob]))
+        const audioData = await fetchFileFn(new Blob([audio.audioBlob]))
         await ffmpeg.writeFile(`audio_${i}.mp3`, audioData)
       }
     }
@@ -231,7 +240,8 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
 
   let concatContent = ''
   for (let i = 0; i < pages.length; i++) {
-    const duration = slideAudios?.[i]?.duration || defaultSlideDuration
+    const audioDur = slideAudios?.[i]?.duration || DEFAULT_SLIDE_DURATION
+    const duration = audioDur + slideDelay
     concatContent += `file 'slide_${i}.png'\n`
     concatContent += `duration ${duration}\n`
   }
@@ -249,14 +259,13 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
 
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
-      const duration = audio?.duration || defaultSlideDuration
+      const duration = (audio?.duration || DEFAULT_SLIDE_DURATION) + slideDelay
 
       if (audio) {
         audioInputs.push('-i', `audio_${i}.mp3`)
         audioFilterParts.push(`[${inputIndex}:a]apad=pad_dur=0[a${i}]`)
         inputIndex++
       } else {
-        // Generate silence for slides without audio
         audioFilterParts.push(`anullsrc=r=44100:cl=stereo,atrim=0:${duration}[a${i}]`)
       }
     }
@@ -275,12 +284,21 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     let audioConcat = ''
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
-      const duration = audio?.duration || defaultSlideDuration
 
       if (audio) {
         audioConcat += `file 'audio_${i}.mp3'\n`
+        // Add silence gap after audio for slide delay
+        if (slideDelay > 0) {
+          await ffmpeg.exec([
+            '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`,
+            '-t', `${slideDelay}`,
+            '-c:a', 'aac',
+            '-y', `gap_${i}.aac`,
+          ])
+          audioConcat += `file 'gap_${i}.aac'\n`
+        }
       } else {
-        // Create silence file
+        const duration = DEFAULT_SLIDE_DURATION + slideDelay
         await ffmpeg.exec([
           '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`,
           '-t', `${duration}`,

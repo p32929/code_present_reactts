@@ -28,7 +28,7 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
   const [step, setStep] = useState<Step>('config')
   const [includeNarration, setIncludeNarration] = useState(false)
   const [resolution, setResolution] = useState<'1080p' | '720p'>('1080p')
-  const [defaultDuration, setDefaultDuration] = useState(4)
+  const [slideDelay, setSlideDelay] = useState(1.5)
   const [progressMessage, setProgressMessage] = useState('')
   const [progressPercent, setProgressPercent] = useState(0)
   const [error, setError] = useState('')
@@ -94,7 +94,7 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
         pages,
         slideAudios,
         resolution,
-        defaultSlideDuration: defaultDuration,
+        slideDelay,
         onProgress: (step, progress) => {
           setProgressMessage(step)
           // Scale progress from 30-100 if we had audio, or 0-100 if not
@@ -113,7 +113,8 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
       setStep('complete')
     } catch (e: any) {
       if (e.message === 'Aborted' || e.name === 'AbortError') return
-      setError(e.message || 'An unexpected error occurred during export.')
+      console.error('Export error:', e)
+      setError(e.message || String(e) || 'An unexpected error occurred during export.')
       setStep('error')
     }
   }
@@ -186,23 +187,23 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
                 </Select>
               </div>
 
-              {/* Default slide duration */}
+              {/* Delay between slides */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">Default slide duration</label>
-                  <span className="text-sm text-muted-foreground">{defaultDuration}s</span>
+                  <label className="text-sm font-medium">Delay between slides</label>
+                  <span className="text-sm text-muted-foreground">{slideDelay}s</span>
                 </div>
                 <input
                   type="range"
-                  min={2}
-                  max={10}
-                  step={1}
-                  value={defaultDuration}
-                  onChange={(e) => setDefaultDuration(Number(e.target.value))}
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={slideDelay}
+                  onChange={(e) => setSlideDelay(Number(e.target.value))}
                   className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Duration for slides without narration audio
+                  Pause between each slide transition
                 </p>
               </div>
 

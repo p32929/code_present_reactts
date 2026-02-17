@@ -5,6 +5,9 @@ export interface SlideAudio {
   duration: number // seconds
 }
 
+// In-memory cache: subtitle text -> generated audio
+const ttsCache = new Map<string, SlideAudio>()
+
 async function getAudioDuration(audioBlob: Blob): Promise<number> {
   const arrayBuffer = await audioBlob.arrayBuffer()
   const audioContext = new AudioContext()
@@ -14,6 +17,66 @@ async function getAudioDuration(audioBlob: Blob): Promise<number> {
   } finally {
     await audioContext.close()
   }
+}
+
+async function callTTS(
+  text: string,
+  voiceId: string,
+  apiKey: string,
+  signal?: AbortSignal
+): Promise<SlideAudio | null> {
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+      signal,
+    }
+  )
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('Invalid ElevenLabs API key. Please check your settings.')
+  }
+
+  if (res.status === 429) {
+    await new Promise((r) => setTimeout(r, 3000))
+    const retryRes = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_monolingual_v1',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+        signal,
+      }
+    )
+    if (!retryRes.ok) return null
+    const blob = await retryRes.blob()
+    const duration = await getAudioDuration(blob)
+    return { audioBlob: blob, duration }
+  }
+
+  if (res.ok) {
+    const blob = await res.blob()
+    const duration = await getAudioDuration(blob)
+    return { audioBlob: blob, duration }
+  }
+
+  return null
 }
 
 export async function generateTTSForSlides(
@@ -40,65 +103,20 @@ export async function generateTTSForSlides(
       continue
     }
 
+    // Check cache first
+    const cached = ttsCache.get(text)
+    if (cached) {
+      results.push(cached)
+      onProgress?.(i + 1, subtitles.length)
+      continue
+    }
+
     try {
-      const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'xi-api-key': settings.elevenLabsApiKey,
-          },
-          body: JSON.stringify({
-            text,
-            model_id: 'eleven_monolingual_v1',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
-          }),
-          signal,
-        }
-      )
-
-      if (res.status === 401 || res.status === 403) {
-        throw new Error('Invalid ElevenLabs API key. Please check your settings.')
+      const audio = await callTTS(text, voiceId, settings.elevenLabsApiKey, signal)
+      if (audio) {
+        ttsCache.set(text, audio)
       }
-
-      if (res.status === 429) {
-        // Retry with backoff
-        await new Promise((r) => setTimeout(r, 3000))
-        const retryRes = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'xi-api-key': settings.elevenLabsApiKey,
-            },
-            body: JSON.stringify({
-              text,
-              model_id: 'eleven_monolingual_v1',
-              voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-            }),
-            signal,
-          }
-        )
-        if (!retryRes.ok) {
-          results.push(null)
-          onProgress?.(i + 1, subtitles.length)
-          continue
-        }
-        const blob = await retryRes.blob()
-        const duration = await getAudioDuration(blob)
-        results.push({ audioBlob: blob, duration })
-      } else if (res.ok) {
-        const blob = await res.blob()
-        const duration = await getAudioDuration(blob)
-        results.push({ audioBlob: blob, duration })
-      } else {
-        results.push(null)
-      }
+      results.push(audio)
     } catch (e: any) {
       if (e.name === 'AbortError' || e.message === 'Aborted') throw e
       if (e.message.includes('Invalid ElevenLabs')) throw e
@@ -108,7 +126,6 @@ export async function generateTTSForSlides(
 
     onProgress?.(i + 1, subtitles.length)
 
-    // Rate limit delay
     if (i < subtitles.length - 1) {
       await new Promise((r) => setTimeout(r, 500))
     }

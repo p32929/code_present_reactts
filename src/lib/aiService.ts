@@ -7,7 +7,6 @@ export interface GeneratedSlide {
   subtitle: string
   code: string
   codeLanguage: string
-  imagePrompt?: string
 }
 
 export interface GeneratedPresentation {
@@ -15,49 +14,78 @@ export interface GeneratedPresentation {
   slides: GeneratedSlide[]
 }
 
-const SYSTEM_PROMPT = `You are an expert code analyst and presentation generator. Your job is to deeply analyze source code from a repository, understand the project's purpose, architecture, and key components, then create a clear and insightful presentation about it.
+const SYSTEM_PROMPT = `You are an expert code presenter. Analyze a code repository and create a concise, engaging presentation.
 
-ANALYSIS STEPS (do these mentally before generating slides):
-1. Read every file provided and understand what the project does
-2. Identify the tech stack, frameworks, and languages used
-3. Map out the architecture: entry points, core modules, data flow, APIs
-4. Find the most important/interesting code patterns and functions
-5. Understand how the pieces fit together
+You MUST follow the EXACT output format below. Do NOT use JSON. Do NOT use markdown fences. Do NOT deviate from this structure.
 
-OUTPUT FORMAT — use this EXACT delimiter-based format (NOT JSON):
+=PROJECT_NAME=
+Short project name
+=SLIDE=
+-TITLE-
+Short punchy title (3-6 words max)
+-DESCRIPTION-
+One short sentence (under 15 words)
+-SUBTITLE-
+Casual narration (2-3 short sentences, like explaining to a friend)
+-CODE-
+Code snippet from actual source files, or leave empty
+-CODE_LANGUAGE-
+language name (e.g. typescript, python, go)
+=SLIDE=
+-TITLE-
+...next slide...
 
-===PROJECT_NAME===
-The project name here
-===SLIDE===
----TITLE---
-Slide title here
----DESCRIPTION---
-Brief description shown on slide (1-2 sentences)
----SUBTITLE---
-Narration script: what a presenter would say explaining this slide (2-4 natural sentences)
----CODE---
-A relevant code snippet copied from the actual source files, or leave empty
----CODE_LANGUAGE---
-programming language for syntax highlighting (e.g. typescript, python, go)
----IMAGE_PROMPT---
-Optional DALL-E prompt for a relevant illustration, or leave empty
-===SLIDE===
----TITLE---
-Next slide title
----DESCRIPTION---
-...and so on for each slide...
+RULES:
+- TITLE: 3-6 words. Punchy. No jargon. No parentheses. No class names.
+- DESCRIPTION: ONE sentence, under 15 words.
+- SUBTITLE: 2-3 casual sentences. Like explaining to a friend over coffee.
+- CODE: Under 20 lines, from actual source files only — never invent code. MOST slides should have code.
+- 8-15 slides. First slide = overview (no code). Last slide = takeaways (no code). All other slides MUST have code.
+- EVERY slide must be interesting and meaningful. No filler slides about boring stuff like env parsing, file reading, or basic config loading. Focus on the unique, clever, or important parts of the project that make someone go "oh that's cool".
 
-SLIDE GUIDELINES:
-- Create 8-15 slides that tell a coherent story about the project
-- Slide 1: Project overview — what it does, why it exists, tech stack (no code)
-- Slide 2: Project structure / architecture overview
-- Middle slides: Walk through key components, important functions, data flow, APIs, configuration
-- For each code slide, pick the MOST relevant snippet from the actual source files (under 30 lines, trimmed to the important part)
-- Last slide: Summary, key takeaways, or notable design decisions
-- Subtitles should sound like a knowledgeable developer explaining the project to a colleague
-- Only use IMAGE_PROMPT for slides that truly benefit from a visual (architecture overview, data flow)
-- IMPORTANT: All code in slides MUST come directly from the provided source files — never invent code
-- Return ONLY the delimiter format above, no markdown fences, no JSON, no extra text`
+EXAMPLE OUTPUT (follow this exact structure):
+
+=PROJECT_NAME=
+WeatherCLI
+=SLIDE=
+-TITLE-
+What is WeatherCLI?
+-DESCRIPTION-
+A tiny command-line tool that fetches weather data.
+-SUBTITLE-
+So this is a simple CLI app. You give it a city name and it hits a weather API and prints the forecast. Pretty handy!
+-CODE-
+
+-CODE_LANGUAGE-
+
+=SLIDE=
+-TITLE-
+Fetching the Data
+-DESCRIPTION-
+Uses the OpenWeather API with a simple GET request.
+-SUBTITLE-
+The core logic is just one fetch call. It grabs the API key from an env var and hits the endpoint. Nothing fancy but it works great.
+-CODE-
+async function getWeather(city) {
+  const res = await fetch(
+    \`https://api.openweathermap.org/data/2.5/weather?q=\${city}&appid=\${API_KEY}\`
+  );
+  return res.json();
+}
+-CODE_LANGUAGE-
+javascript
+=SLIDE=
+-TITLE-
+Key Takeaways
+-DESCRIPTION-
+Simple, focused, and gets the job done.
+-SUBTITLE-
+It's a clean little project. No over-engineering, just a focused tool that does one thing well. Love that about it.
+-CODE-
+
+-CODE_LANGUAGE-
+
+Now analyze the code repository below and generate the presentation following this EXACT format.`
 
 async function callWithRetry(
   url: string,
@@ -76,46 +104,119 @@ async function callWithRetry(
   throw new Error('Rate limit exceeded. Please try again later.')
 }
 
-function parseDelimiterFormat(content: string): GeneratedPresentation {
-  const text = content.trim()
+function normalizeDelimiters(raw: string): string {
+  let text = raw.trim()
 
-  // Extract project name
-  const projectNameMatch = text.match(/===PROJECT_NAME===\s*\n([\s\S]*?)(?=\n===SLIDE===)/)
-  if (!projectNameMatch) {
-    throw new Error('Could not find project name in AI response. Please try again.')
+  // Strip markdown fences
+  if (text.startsWith('```')) {
+    text = text.replace(/^```[a-z]*\s*\n?/, '').replace(/\n?```\s*$/, '')
   }
-  const projectName = projectNameMatch[1].trim()
 
-  // Split into slide blocks
-  const slideBlocks = text.split('===SLIDE===').slice(1) // first element is before first SLIDE marker
+  // Normalize triple/double delimiters to single: ===SLIDE=== -> =SLIDE=, ---TITLE--- -> -TITLE-
+  text = text.replace(/={2,}([\w]+)={2,}/g, '=$1=')
+  text = text.replace(/-{2,}([\w]+)-{2,}/g, '-$1-')
 
-  if (slideBlocks.length === 0) {
+  return text
+}
+
+function extractProjectName(header: string): string {
+  // 1. =PROJECT_NAME=\nThe Name
+  const exactMatch = header.match(/=PROJECT_NAME=\s*\n([\s\S]*)/)
+  if (exactMatch && exactMatch[1].trim()) return exactMatch[1].trim()
+
+  // 2. =Some Project Name= (name inside delimiters)
+  const inlineMatch = header.match(/=([^=]+)=/)
+  if (inlineMatch && inlineMatch[1].trim() !== 'PROJECT_NAME') return inlineMatch[1].trim()
+
+  // 3. Just use whatever non-delimiter text is there
+  const cleaned = header.replace(/=+/g, '').replace(/-+/g, '').replace(/PROJECT_NAME/gi, '').trim()
+  if (cleaned) return cleaned
+
+  return 'Untitled Presentation'
+}
+
+function parseSlideBlock(block: string): GeneratedSlide | null {
+  const trimmed = block.trim()
+  if (!trimmed) return null
+
+  // Split block into lines, then walk through collecting fields
+  const lines = trimmed.split('\n')
+  const fields: Record<string, string[]> = {}
+  let currentField = ''
+
+  for (const line of lines) {
+    // Check if this line is a field marker like -TITLE- or ---TITLE---
+    const markerMatch = line.match(/^-{1,3}([A-Z_]+)-{1,3}\s*$/)
+    if (markerMatch) {
+      currentField = markerMatch[1].toUpperCase()
+      fields[currentField] = []
+    } else if (currentField) {
+      fields[currentField].push(line)
+    }
+  }
+
+  // Join lines for each field and trim
+  const get = (name: string) => (fields[name] || []).join('\n').trim()
+
+  const title = get('TITLE')
+  if (!title) return null
+
+  return {
+    title,
+    description: get('DESCRIPTION'),
+    subtitle: get('SUBTITLE'),
+    code: get('CODE'),
+    codeLanguage: get('CODE_LANGUAGE') || 'javascript',
+  }
+}
+
+function tryParseJSON(content: string): GeneratedPresentation | null {
+  try {
+    let jsonStr = content.trim()
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```[a-z]*\s*\n?/, '').replace(/\n?```\s*$/, '')
+    }
+    const parsed = JSON.parse(jsonStr)
+    if (parsed.projectName && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+      return {
+        projectName: parsed.projectName,
+        slides: parsed.slides.map((s: any) => ({
+          title: s.title || '',
+          description: s.description || '',
+          subtitle: s.subtitle || '',
+          code: s.code || '',
+          codeLanguage: s.codeLanguage || 'javascript',
+        })),
+      }
+    }
+  } catch {}
+  return null
+}
+
+function parseDelimiterFormat(content: string): GeneratedPresentation {
+  // If the AI ignored us and returned JSON anyway, handle it
+  const jsonResult = tryParseJSON(content)
+  if (jsonResult) return jsonResult
+
+  const text = normalizeDelimiters(content)
+
+  // Find first slide marker (case-insensitive)
+  const slideMarker = /=SLIDE=/i
+  const firstMatch = text.match(slideMarker)
+  if (!firstMatch || firstMatch.index === undefined) {
     throw new Error('No slides found in AI response. Please try again.')
   }
 
+  const header = text.slice(0, firstMatch.index).trim()
+  const projectName = extractProjectName(header)
+
+  // Split on =SLIDE= (case-insensitive)
+  const slideBlocks = text.split(/=SLIDE=/i).slice(1)
+
   const slides: GeneratedSlide[] = []
-
   for (const block of slideBlocks) {
-    const trimmed = block.trim()
-    if (!trimmed) continue
-
-    const getField = (name: string): string => {
-      const regex = new RegExp(`---${name}---\\s*\\n([\\s\\S]*?)(?=\\n---[A-Z_]+---|$)`)
-      const match = trimmed.match(regex)
-      return match ? match[1].trim() : ''
-    }
-
-    const title = getField('TITLE')
-    if (!title) continue // skip empty slides
-
-    slides.push({
-      title,
-      description: getField('DESCRIPTION'),
-      subtitle: getField('SUBTITLE'),
-      code: getField('CODE'),
-      codeLanguage: getField('CODE_LANGUAGE') || 'javascript',
-      imagePrompt: getField('IMAGE_PROMPT') || undefined,
-    })
+    const slide = parseSlideBlock(block)
+    if (slide) slides.push(slide)
   }
 
   if (slides.length === 0) {
