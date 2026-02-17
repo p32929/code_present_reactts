@@ -300,25 +300,37 @@ export function GeneratePresentationDialog({ open, onOpenChange, onComplete }: P
               </div>
 
               <div className="border-t pt-4 space-y-4">
-                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Text-to-Speech (Optional, for MP4 export)</h4>
+                <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Gemini TTS (Optional)</h4>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">ElevenLabs API Key</label>
+                  <label className="text-sm font-medium">API Keys</label>
+                  <textarea
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    placeholder={"AIzaSy...\nAIzaSy...\nOne key per line"}
+                    value={settings.ttsApiKeys}
+                    onChange={(e) => setSettings({ ...settings, ttsApiKeys: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    One Gemini API key per line. If one key fails, the next one is tried automatically.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">TTS Model</label>
                   <Input
-                    type="password"
-                    placeholder="Your ElevenLabs API key..."
-                    value={settings.elevenLabsApiKey}
-                    onChange={(e) => setSettings({ ...settings, elevenLabsApiKey: e.target.value })}
+                    placeholder="gemini-2.5-flash-preview-tts"
+                    value={settings.ttsModel}
+                    onChange={(e) => setSettings({ ...settings, ttsModel: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Voice ID</label>
+                  <label className="text-sm font-medium">TTS Voice</label>
                   <Input
-                    placeholder="21m00Tcm4TlvDq8ikWAM (Rachel)"
-                    value={settings.elevenLabsVoiceId}
-                    onChange={(e) => setSettings({ ...settings, elevenLabsVoiceId: e.target.value })}
+                    placeholder="Kore, Puck, Charon, Fenrir, Aoede..."
+                    value={settings.ttsVoice}
+                    onChange={(e) => setSettings({ ...settings, ttsVoice: e.target.value })}
                   />
                 </div>
               </div>
+
             </div>
 
             <DialogFooter>

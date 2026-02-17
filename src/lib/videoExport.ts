@@ -1,5 +1,6 @@
 import type { PresentationPage } from './database'
 import type { SlideAudio } from './ttsService'
+import html2canvas from 'html2canvas'
 
 let ffmpegInstance: any = null
 let fetchFileFn: any = null
@@ -17,7 +18,6 @@ async function getFFmpeg(
 ) {
   if (ffmpegInstance?.loaded) return ffmpegInstance
 
-  // Dynamic imports — only loaded when export is actually triggered
   const [{ FFmpeg }, { fetchFile }] = await Promise.all([
     import('@ffmpeg/ffmpeg'),
     import('@ffmpeg/util'),
@@ -39,149 +39,330 @@ async function getFFmpeg(
   return ffmpeg
 }
 
-const DEFAULT_SLIDE_DURATION = 4 // seconds for slides without audio
+const DEFAULT_SLIDE_DURATION = 4
 
-export interface ExportOptions {
-  pages: PresentationPage[]
-  slideAudios: (SlideAudio | null)[] | null
-  resolution: '1080p' | '720p'
-  slideDelay: number // seconds of pause between slides
-  onProgress?: (step: string, progress: number) => void
-  onLog?: (msg: string) => void
-  signal?: AbortSignal
+// ── Settings helpers (match Play.tsx exactly) ──
+
+interface PresentationSettings {
+  titleTopSpacing: number
+  descriptionTitleSpacing: number
+  imageDescriptionSpacing: number
+  codeImageSpacing: number
+  subtitleSpacing: number
+  titleFontSize: number
+  descriptionFontSize: number
+  subtitleFontSize: number
 }
 
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxWidth: number
-): string[] {
-  const words = text.split(' ')
-  const lines: string[] = []
-  let line = ''
-  for (const word of words) {
-    const test = line ? `${line} ${word}` : word
-    if (ctx.measureText(test).width > maxWidth && line) {
-      lines.push(line)
-      line = word
-    } else {
-      line = test
-    }
+function getSettings(): PresentationSettings {
+  const get = (key: string, def: number) => {
+    const v = localStorage.getItem(`presentation-settings-${key}`)
+    return v ? Number(v) : def
   }
-  if (line) lines.push(line)
-  return lines
+  return {
+    titleTopSpacing: get('titleTopSpacing', 8),
+    descriptionTitleSpacing: get('descriptionTitleSpacing', 6),
+    imageDescriptionSpacing: get('imageDescriptionSpacing', 6),
+    codeImageSpacing: get('codeImageSpacing', 6),
+    subtitleSpacing: get('subtitleSpacing', 8),
+    titleFontSize: get('titleFontSize', 5),
+    descriptionFontSize: get('descriptionFontSize', 5),
+    subtitleFontSize: get('subtitleFontSize', 4),
+  }
 }
 
-function renderSlideToCanvas(
-  page: PresentationPage,
-  width: number,
-  height: number
-): HTMLCanvasElement {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
-
-  // Background
-  ctx.fillStyle = '#000000'
-  ctx.fillRect(0, 0, width, height)
-
-  const pad = 80
-  const contentWidth = width - pad * 2
-  let y = height * 0.15
-
-  // Title
-  if (page.title) {
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 56px system-ui, -apple-system, sans-serif'
-    ctx.textAlign = 'center'
-    const lines = wrapText(ctx, page.title, contentWidth)
-    for (const line of lines) {
-      ctx.fillText(line, width / 2, y)
-      y += 68
-    }
-    y += 12
+// Convert Tailwind spacing values → px  (mt-N uses 0.25rem * N, 1rem = 16px)
+function spacingPx(val: number): number {
+  const map: Record<number, number> = {
+    0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 7: 28,
+    8: 32, 9: 36, 10: 40, 11: 44, 12: 48, 14: 56, 16: 64, 20: 80, 24: 96,
   }
+  const keys = Object.keys(map).map(Number).sort((a, b) => a - b)
+  const closest = keys.reduce((prev, curr) =>
+    Math.abs(curr - val) < Math.abs(prev - val) ? curr : prev
+  )
+  return map[closest] ?? 32
+}
 
-  // Description
-  if (page.description) {
-    ctx.fillStyle = 'rgba(255,255,255,0.85)'
-    ctx.font = '32px system-ui, -apple-system, sans-serif'
-    ctx.textAlign = 'center'
-    const lines = wrapText(ctx, page.description, contentWidth)
-    for (const line of lines) {
-      ctx.fillText(line, width / 2, y)
-      y += 42
-    }
-    y += 20
+// Font size maps – at ≥1024px width we always hit the "lg:" variant
+function titleFontPx(sizeValue: number): number {
+  const map: Record<number, number> = {
+    1: 30, 2: 36, 3: 48, 4: 60, 5: 72, 6: 96, 7: 128, 8: 128, 9: 128, 10: 128,
   }
+  return map[sizeValue] ?? 72
+}
 
-  // Code block
-  if (page.code) {
-    const codeLines = page.code.split('\n').slice(0, 20)
-    const codeFontSize = 18
-    const lineHeight = codeFontSize * 1.6
-    const codeBlockH = codeLines.length * lineHeight + 40
-    const codeBlockW = contentWidth
-    const codeX = pad
-    const codeY = y
-
-    // Code background
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)'
-    const r = 12
-    ctx.beginPath()
-    ctx.moveTo(codeX + r, codeY)
-    ctx.lineTo(codeX + codeBlockW - r, codeY)
-    ctx.quadraticCurveTo(codeX + codeBlockW, codeY, codeX + codeBlockW, codeY + r)
-    ctx.lineTo(codeX + codeBlockW, codeY + codeBlockH - r)
-    ctx.quadraticCurveTo(codeX + codeBlockW, codeY + codeBlockH, codeX + codeBlockW - r, codeY + codeBlockH)
-    ctx.lineTo(codeX + r, codeY + codeBlockH)
-    ctx.quadraticCurveTo(codeX, codeY + codeBlockH, codeX, codeY + codeBlockH - r)
-    ctx.lineTo(codeX, codeY + r)
-    ctx.quadraticCurveTo(codeX, codeY, codeX + r, codeY)
-    ctx.closePath()
-    ctx.fill()
-
-    // Code text
-    ctx.fillStyle = '#e2e8f0'
-    ctx.font = `${codeFontSize}px ui-monospace, "Cascadia Code", "Fira Code", monospace`
-    ctx.textAlign = 'left'
-    let codeTextY = codeY + 28
-    for (const line of codeLines) {
-      ctx.fillText(line, codeX + 20, codeTextY, codeBlockW - 40)
-      codeTextY += lineHeight
-    }
-
-    y = codeY + codeBlockH + 24
+function descFontPx(sizeValue: number): number {
+  const map: Record<number, number> = {
+    1: 18, 2: 20, 3: 24, 4: 30, 5: 36, 6: 48, 7: 60, 8: 72, 9: 96, 10: 128,
   }
+  return map[sizeValue] ?? 36
+}
 
-  // Subtitle
-  if (page.subtitle) {
-    ctx.fillStyle = 'rgba(255,255,255,0.55)'
-    ctx.font = 'italic 24px system-ui, -apple-system, sans-serif'
-    ctx.textAlign = 'center'
-    const lines = wrapText(ctx, page.subtitle, contentWidth)
-    for (const line of lines) {
-      ctx.fillText(line, width / 2, y)
-      y += 34
-    }
+function subtitleFontPx(sizeValue: number): number {
+  const map: Record<number, number> = {
+    1: 16, 2: 18, 3: 20, 4: 24, 5: 30, 6: 36, 7: 48, 8: 60, 9: 72, 10: 96,
   }
+  return map[sizeValue] ?? 24
+}
 
-  return canvas
+// ── Slide → DOM → html2canvas → PNG ──
+
+function isImageSrc(src: string): boolean {
+  return (
+    src.startsWith('http') ||
+    src.startsWith('data:image') ||
+    src.startsWith('/') ||
+    src.startsWith('./')
+  )
 }
 
 async function renderSlideToImage(
   page: PresentationPage,
   width: number,
-  height: number
+  height: number,
 ): Promise<Uint8Array> {
-  const canvas = renderSlideToCanvas(page, width, height)
+  const s = getSettings()
+
+  // Use an iframe to isolate from page CSS (Tailwind CSS 4 uses oklch colors
+  // which html2canvas cannot parse)
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${width}px;height:${height}px;border:none;overflow:hidden;`
+  document.body.appendChild(iframe)
+
+  await new Promise<void>((resolve) => {
+    iframe.onload = () => resolve()
+    setTimeout(resolve, 200)
+  })
+
+  const doc = iframe.contentDocument!
+  doc.body.style.cssText = 'margin:0;padding:0;overflow:hidden;'
+
+  // ── Outer wrapper (matches Play.tsx root div) ──
+  const root = doc.createElement('div')
+  root.style.cssText = `width:${width}px;height:${height}px;background:#000;color:#fff;display:flex;flex-direction:column;overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;`
+
+  // ── Content area (matches flex-1 container in Play) ──
+  const content = doc.createElement('div')
+  content.style.cssText = `flex:1;display:flex;flex-direction:column;justify-content:center;padding:${height * 0.06}px ${width * 0.04}px ${height * 0.1}px;overflow:hidden;max-width:${Math.min(width * 0.8, 1152)}px;margin:0 auto;width:100%;`
+
+  // ── Title ──
+  if (page.title) {
+    const el = doc.createElement('h1')
+    el.textContent = page.title
+    el.style.cssText = `font-size:${titleFontPx(s.titleFontSize)}px;font-weight:bold;text-align:center;color:#fff;line-height:1.15;text-transform:capitalize;margin:0;margin-top:${spacingPx(s.titleTopSpacing)}px;flex-shrink:0;`
+    content.appendChild(el)
+  }
+
+  // ── Description ──
+  if (page.description) {
+    const el = doc.createElement('p')
+    el.textContent = page.description
+    el.style.cssText = `font-size:${descFontPx(s.descriptionFontSize)}px;text-align:center;color:rgba(255,255,255,0.9);line-height:1.5;text-transform:capitalize;margin:0;margin-top:${spacingPx(s.descriptionTitleSpacing)}px;max-width:${Math.min(width * 0.7, 1024)}px;align-self:center;flex-shrink:0;`
+    content.appendChild(el)
+  }
+
+  // ── Image ──
+  if (page.image) {
+    const wrapper = doc.createElement('div')
+    wrapper.style.cssText = `display:flex;justify-content:center;margin-top:${spacingPx(s.imageDescriptionSpacing)}px;flex:1;min-height:0;align-items:center;`
+
+    if (isImageSrc(page.image)) {
+      const img = doc.createElement('img')
+      img.crossOrigin = 'anonymous'
+      img.src = page.image
+      img.style.cssText = `max-width:100%;max-height:100%;object-fit:contain;border-radius:12px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);`
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve()
+        img.onerror = () => resolve()
+        setTimeout(() => resolve(), 5000)
+      })
+      wrapper.appendChild(img)
+    } else {
+      const box = doc.createElement('div')
+      box.style.cssText = `max-width:${Math.min(width * 0.65, 900)}px;padding:32px;background:rgba(255,255,255,0.1);border-radius:12px;border:1px solid rgba(255,255,255,0.2);color:#fff;text-align:center;word-break:break-word;`
+      const pre = doc.createElement('pre')
+      pre.textContent = page.image
+      pre.style.cssText = `white-space:pre-wrap;font-family:ui-monospace,"Cascadia Code","Fira Code",monospace;font-size:14px;line-height:1.6;margin:0;`
+      box.appendChild(pre)
+      wrapper.appendChild(box)
+    }
+    content.appendChild(wrapper)
+  }
+
+  // ── Code ──
+  if (page.code) {
+    const codeWrapper = doc.createElement('div')
+    codeWrapper.style.cssText = `border-radius:12px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);margin-top:${spacingPx(s.codeImageSpacing)}px;flex:1;min-height:0;display:flex;flex-direction:column;`
+
+    const pre = doc.createElement('pre')
+    pre.style.cssText = `margin:0;padding:24px;font-family:ui-monospace,"Cascadia Code","Fira Code","Droid Sans Mono",monospace;font-size:${Math.max(14, Math.min(18, width / 110))}px;line-height:1.5;background:rgba(15,23,42,0.98);color:#d4d4d4;overflow:hidden;flex:1;white-space:pre;tab-size:2;`
+
+    const lines = page.code.split('\n')
+    const numberedCode = doc.createElement('div')
+    numberedCode.style.cssText = `display:flex;`
+
+    const lineNums = doc.createElement('div')
+    lineNums.style.cssText = `text-align:right;padding-right:16px;border-right:1px solid rgba(255,255,255,0.1);margin-right:16px;color:rgba(255,255,255,0.3);user-select:none;flex-shrink:0;`
+    lineNums.innerHTML = lines.map((_, i) => `<div>${i + 1}</div>`).join('')
+
+    const codeBody = doc.createElement('div')
+    codeBody.style.cssText = `flex:1;overflow:hidden;`
+    codeBody.innerHTML = highlightCode(page.code, page.codeLanguage || 'javascript')
+
+    pre.appendChild(numberedCode)
+    numberedCode.appendChild(lineNums)
+    numberedCode.appendChild(codeBody)
+
+    codeWrapper.appendChild(pre)
+    content.appendChild(codeWrapper)
+  }
+
+  // ── Subtitle ──
+  if (page.subtitle) {
+    const el = doc.createElement('p')
+    el.textContent = page.subtitle
+    el.style.cssText = `font-size:${subtitleFontPx(s.subtitleFontSize)}px;text-align:center;color:rgba(255,255,255,0.8);line-height:1.5;font-style:italic;margin:0;margin-top:${spacingPx(s.subtitleSpacing)}px;max-width:${Math.min(width * 0.65, 900)}px;align-self:center;flex-shrink:0;`
+    content.appendChild(el)
+  }
+
+  // ── Empty slide ──
+  if (!page.title && !page.description && !page.code && !page.image) {
+    const empty = doc.createElement('div')
+    empty.style.cssText = `text-align:center;color:rgba(255,255,255,0.4);flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;`
+    empty.innerHTML = `
+      <div style="width:96px;height:96px;border-radius:50%;border:2px dashed rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;margin-bottom:24px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </div>
+      <div style="font-size:36px;font-weight:bold;margin-bottom:16px;">Empty Slide</div>
+      <div style="font-size:20px;">No content on this slide</div>
+    `
+    content.appendChild(empty)
+  }
+
+  root.appendChild(content)
+  doc.body.appendChild(root)
+
+  // Small delay to let images/fonts settle
+  await new Promise((r) => setTimeout(r, 150))
+
+  // ── Capture with html2canvas ──
+  const canvas = await html2canvas(root, {
+    width,
+    height,
+    scale: 1,
+    backgroundColor: '#000000',
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+    // Use the iframe's window so html2canvas reads styles from the clean document
+    windowWidth: width,
+    windowHeight: height,
+  })
+
+  // Cleanup
+  document.body.removeChild(iframe)
 
   const blob = await new Promise<Blob>((resolve) =>
     canvas.toBlob((b) => resolve(b!), 'image/png')
   )
-
   return new Uint8Array(await blob.arrayBuffer())
+}
+
+// ── Basic syntax highlighting (vscDarkPlus colors) ──
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function highlightCode(code: string, _language: string): string {
+  const escaped = escapeHtml(code)
+
+  // Tokenize to avoid overlapping highlights
+  const tokens: { start: number; end: number; color: string; text: string }[] = []
+  const chars = escaped
+
+  // Order matters: comments first, then strings, then keywords, then numbers
+  const patterns: [RegExp, string][] = [
+    // Block comments
+    [/\/\*[\s\S]*?\*\//g, '#6A9955'],
+    // Line comments
+    [/\/\/.*/g, '#6A9955'],
+    // Python/shell comments
+    [/#[^\n]*/g, '#6A9955'],
+    // Template literals
+    [/`(?:[^`\\]|\\.)*`/g, '#CE9178'],
+    // Double-quoted strings
+    [/&quot;(?:[^&]|&(?!quot;))*?&quot;/g, '#CE9178'],
+    // Single-quoted strings
+    [/'(?:[^'\\]|\\.)*'/g, '#CE9178'],
+    // Keywords
+    [/\b(const|let|var|function|return|if|else|for|while|do|class|interface|type|enum|import|export|from|as|default|async|await|new|this|super|try|catch|finally|throw|switch|case|break|continue|null|undefined|true|false|void|typeof|instanceof|in|of|yield|delete|extends|implements|static|get|set|public|private|protected|readonly|abstract|override|def|self|elif|except|raise|with|lambda|pass|print|None|True|False|fn|let|mut|pub|use|mod|impl|trait|struct|match|where|loop|move|ref|unsafe|crate|macro)\b/g, '#569CD6'],
+    // Decorators / annotations
+    [/@\w+/g, '#DCDCAA'],
+    // Function calls
+    [/\b([a-zA-Z_]\w*)\s*(?=\()/g, '#DCDCAA'],
+    // Numbers
+    [/\b(\d+\.?\d*([eE][+-]?\d+)?|0[xX][0-9a-fA-F]+|0[bB][01]+)\b/g, '#B5CEA8'],
+    // Types (PascalCase words)
+    [/\b([A-Z][a-zA-Z0-9]*)\b/g, '#4EC9B0'],
+  ]
+
+  // Mark which character positions are already colored
+  const colored = new Array(chars.length).fill(false)
+
+  for (const [regex, color] of patterns) {
+    let match
+    regex.lastIndex = 0
+    while ((match = regex.exec(chars)) !== null) {
+      const start = match.index
+      const end = start + match[0].length
+      // Check overlap
+      let overlap = false
+      for (let i = start; i < end; i++) {
+        if (colored[i]) { overlap = true; break }
+      }
+      if (!overlap) {
+        tokens.push({ start, end, color, text: match[0] })
+        for (let i = start; i < end; i++) colored[i] = true
+      }
+    }
+  }
+
+  // Sort tokens by position
+  tokens.sort((a, b) => a.start - b.start)
+
+  // Build highlighted HTML
+  let result = ''
+  let pos = 0
+  for (const token of tokens) {
+    if (token.start > pos) {
+      result += chars.slice(pos, token.start)
+    }
+    result += `<span style="color:${token.color}">${token.text}</span>`
+    pos = token.end
+  }
+  if (pos < chars.length) {
+    result += chars.slice(pos)
+  }
+
+  return result
+}
+
+// ── Export options & main function ──
+
+export interface ExportOptions {
+  pages: PresentationPage[]
+  slideAudios: (SlideAudio | null)[] | null
+  resolution: '1080p' | '720p'
+  slideDelay: number
+  onProgress?: (step: string, progress: number) => void
+  onLog?: (msg: string) => void
+  signal?: AbortSignal
 }
 
 export async function exportToMP4(options: ExportOptions): Promise<Blob> {
@@ -204,7 +385,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
 
   if (signal?.aborted) throw new Error('Aborted')
 
-  // Render each slide to PNG
+  // Render each slide to PNG via html2canvas
   onProgress?.('Rendering slides...', 10)
 
   for (let i = 0; i < pages.length; i++) {
@@ -214,7 +395,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     await ffmpeg.writeFile(`slide_${i}.png`, imgData)
 
     const progress = 10 + (60 * (i + 1)) / pages.length
-    onProgress?.('Rendering slides...', progress)
+    onProgress?.(`Rendering slide ${i + 1}/${pages.length}...`, progress)
   }
 
   if (signal?.aborted) throw new Error('Aborted')
@@ -245,33 +426,12 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     concatContent += `file 'slide_${i}.png'\n`
     concatContent += `duration ${duration}\n`
   }
-  // Add last slide again (required by concat demuxer)
   concatContent += `file 'slide_${pages.length - 1}.png'\n`
 
   await ffmpeg.writeFile('concat.txt', concatContent)
 
-  // Encode video
   if (hasAudio && slideAudios) {
-    // Create a list file for audio concatenation
-    let audioFilterParts: string[] = []
-    let audioInputs: string[] = []
-    let inputIndex = 1 // 0 is the video concat
-
-    for (let i = 0; i < slideAudios.length; i++) {
-      const audio = slideAudios[i]
-      const duration = (audio?.duration || DEFAULT_SLIDE_DURATION) + slideDelay
-
-      if (audio) {
-        audioInputs.push('-i', `audio_${i}.mp3`)
-        audioFilterParts.push(`[${inputIndex}:a]apad=pad_dur=0[a${i}]`)
-        inputIndex++
-      } else {
-        audioFilterParts.push(`anullsrc=r=44100:cl=stereo,atrim=0:${duration}[a${i}]`)
-      }
-    }
-
-    // Simpler approach: encode video first, then merge with concatenated audio
-    // First: video only
+    // Video only first
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
       '-vf', `scale=${width}:${height}`,
@@ -280,17 +440,16 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       '-y', 'video_only.mp4',
     ])
 
-    // Create silent audio track for slides without audio and concat all
+    // Build audio track: real audio + silence gaps
     let audioConcat = ''
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
 
       if (audio) {
         audioConcat += `file 'audio_${i}.mp3'\n`
-        // Add silence gap after audio for slide delay
         if (slideDelay > 0) {
           await ffmpeg.exec([
-            '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`,
+            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
             '-t', `${slideDelay}`,
             '-c:a', 'aac',
             '-y', `gap_${i}.aac`,
@@ -300,7 +459,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       } else {
         const duration = DEFAULT_SLIDE_DURATION + slideDelay
         await ffmpeg.exec([
-          '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`,
+          '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
           '-t', `${duration}`,
           '-c:a', 'aac',
           '-y', `silence_${i}.aac`,
@@ -311,14 +470,12 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
 
     await ffmpeg.writeFile('audio_concat.txt', audioConcat)
 
-    // Concat audio
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'audio_concat.txt',
       '-c:a', 'aac',
       '-y', 'audio_full.aac',
     ])
 
-    // Merge video + audio
     await ffmpeg.exec([
       '-i', 'video_only.mp4',
       '-i', 'audio_full.aac',
@@ -327,7 +484,6 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       '-y', 'output.mp4',
     ])
   } else {
-    // Video only, no audio
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
       '-vf', `scale=${width}:${height}`,
@@ -345,6 +501,9 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
   // Cleanup
   for (let i = 0; i < pages.length; i++) {
     try { await ffmpeg.deleteFile(`slide_${i}.png`) } catch {}
+    try { await ffmpeg.deleteFile(`audio_${i}.mp3`) } catch {}
+    try { await ffmpeg.deleteFile(`gap_${i}.aac`) } catch {}
+    try { await ffmpeg.deleteFile(`silence_${i}.aac`) } catch {}
   }
   try { await ffmpeg.deleteFile('concat.txt') } catch {}
   try { await ffmpeg.deleteFile('output.mp4') } catch {}

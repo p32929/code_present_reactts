@@ -1,9 +1,12 @@
+export type TTSMode = 'none' | 'gemini'
+
 export interface AISettings {
   textGenBaseUrl: string
   textGenApiKey: string
   textGenModel: string
-  elevenLabsApiKey: string
-  elevenLabsVoiceId: string
+  ttsApiKeys: string
+  ttsModel: string
+  ttsVoice: string
 }
 
 const PREFIX = 'ai-settings-'
@@ -12,8 +15,9 @@ const DEFAULTS: AISettings = {
   textGenBaseUrl: '',
   textGenApiKey: '',
   textGenModel: '',
-  elevenLabsApiKey: '',
-  elevenLabsVoiceId: '21m00Tcm4TlvDq8ikWAM',
+  ttsApiKeys: '',
+  ttsModel: '',
+  ttsVoice: '',
 }
 
 export function getAISettings(): AISettings {
@@ -21,8 +25,9 @@ export function getAISettings(): AISettings {
     textGenBaseUrl: localStorage.getItem(`${PREFIX}textGenBaseUrl`) || DEFAULTS.textGenBaseUrl,
     textGenApiKey: localStorage.getItem(`${PREFIX}textGenApiKey`) || DEFAULTS.textGenApiKey,
     textGenModel: localStorage.getItem(`${PREFIX}textGenModel`) || DEFAULTS.textGenModel,
-    elevenLabsApiKey: localStorage.getItem(`${PREFIX}elevenLabsApiKey`) || DEFAULTS.elevenLabsApiKey,
-    elevenLabsVoiceId: localStorage.getItem(`${PREFIX}elevenLabsVoiceId`) || DEFAULTS.elevenLabsVoiceId,
+    ttsApiKeys: localStorage.getItem(`${PREFIX}ttsApiKeys`) || DEFAULTS.ttsApiKeys,
+    ttsModel: localStorage.getItem(`${PREFIX}ttsModel`) || DEFAULTS.ttsModel,
+    ttsVoice: localStorage.getItem(`${PREFIX}ttsVoice`) || DEFAULTS.ttsVoice,
   }
 }
 
@@ -39,7 +44,16 @@ export function hasRequiredTextGenSettings(): boolean {
   return !!(s.textGenBaseUrl && s.textGenApiKey)
 }
 
-export function hasRequiredTTSSettings(): boolean {
+export function getTTSApiKeys(): string[] {
   const s = getAISettings()
-  return !!s.elevenLabsApiKey
+  return s.ttsApiKeys
+    .split('\n')
+    .map((k) => k.trim())
+    .filter(Boolean)
+}
+
+export function hasRequiredTTSSettings(): boolean {
+  const keys = getTTSApiKeys()
+  const s = getAISettings()
+  return keys.length > 0 && !!s.ttsModel && !!s.ttsVoice
 }

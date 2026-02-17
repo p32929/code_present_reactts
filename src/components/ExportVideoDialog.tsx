@@ -10,7 +10,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { hasRequiredTTSSettings } from '@/lib/aiSettings'
+import { hasRequiredTTSSettings, type TTSMode } from '@/lib/aiSettings'
+
 import { generateTTSForSlides } from '@/lib/ttsService'
 import { exportToMP4 } from '@/lib/videoExport'
 import type { PresentationPage } from '@/lib/database'
@@ -26,7 +27,7 @@ interface Props {
 
 export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Props) {
   const [step, setStep] = useState<Step>('config')
-  const [includeNarration, setIncludeNarration] = useState(false)
+  const [ttsMode, setTTSMode] = useState<TTSMode>('none')
   const [resolution, setResolution] = useState<'1080p' | '720p'>('1080p')
   const [slideDelay, setSlideDelay] = useState(1.5)
   const [progressMessage, setProgressMessage] = useState('')
@@ -35,8 +36,6 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
   const [ffmpegLog, setFfmpegLog] = useState('')
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-
-  const hasTTSKey = hasRequiredTTSSettings()
 
   const resetState = () => {
     setStep('config')
@@ -59,6 +58,9 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const ttsConfigured = hasRequiredTTSSettings()
+  const canExportWithTTS = ttsMode === 'none' || ttsConfigured
+
   const handleExport = async () => {
     const controller = new AbortController()
     abortRef.current = controller
@@ -71,13 +73,14 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
       let slideAudios = null
 
       // Generate TTS if requested
-      if (includeNarration && hasTTSKey) {
+      if (ttsMode !== 'none') {
         setProgressMessage('Generating narration audio...')
         setProgressPercent(5)
 
         const subtitles = pages.map((p) => p.subtitle || '')
         slideAudios = await generateTTSForSlides(
           subtitles,
+          ttsMode,
           (current, total) => {
             const pct = 5 + (25 * current) / total
             setProgressPercent(pct)
@@ -97,8 +100,7 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
         slideDelay,
         onProgress: (step, progress) => {
           setProgressMessage(step)
-          // Scale progress from 30-100 if we had audio, or 0-100 if not
-          const base = includeNarration ? 30 : 0
+          const base = ttsMode !== 'none' ? 30 : 0
           const scaled = base + ((100 - base) * progress) / 100
           setProgressPercent(scaled)
         },
@@ -154,24 +156,32 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
             </DialogHeader>
 
             <div className="space-y-5 py-4">
-              {/* Narration option */}
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeNarration}
-                  onChange={(e) => setIncludeNarration(e.target.checked)}
-                  disabled={!hasTTSKey}
-                  className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary"
-                />
-                <div>
-                  <span className="text-sm font-medium">Include narration</span>
-                  {!hasTTSKey && (
-                    <p className="text-xs text-muted-foreground">
-                      Requires ElevenLabs API key (configure in Generate Presentation settings)
-                    </p>
-                  )}
+              {/* Narration mode */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Narration</label>
+                <Select value={ttsMode} onValueChange={(v) => setTTSMode(v as TTSMode)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No narration</SelectItem>
+                    <SelectItem value="gemini">Gemini TTS</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {ttsMode === 'none' && 'Video will have no audio.'}
+                  {ttsMode === 'gemini' && 'Uses Gemini TTS model, voice, and API keys from AI Settings.'}
+                </p>
+              </div>
+
+              {/* TTS not configured warning */}
+              {ttsMode === 'gemini' && !ttsConfigured && (
+                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                    TTS is not configured. Please open <strong>Generate Presentation → Settings</strong> (gear icon) and add your Gemini API keys, TTS model, and voice name.
+                  </p>
                 </div>
-              </label>
+              )}
 
               {/* Resolution */}
               <div className="space-y-2">
@@ -218,7 +228,7 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleExport} disabled={pages.length === 0}>
+              <Button onClick={handleExport} disabled={pages.length === 0 || !canExportWithTTS}>
                 <Video className="w-4 h-4 mr-2" />
                 Export
               </Button>
