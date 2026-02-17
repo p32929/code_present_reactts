@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Loader2, CheckCircle, AlertCircle, Download, Video, Trash2 } from 'lucide-react'
+import { Loader2, CheckCircle, AlertCircle, Download, Video, Trash2, Copy, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -39,6 +39,7 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
   const [exportedBlob, setExportedBlob] = useState<Blob | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const [ttsCacheCount, setTtsCacheCount] = useState(0)
+  const [logCopied, setLogCopied] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -268,19 +269,16 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
         {step === 'exporting' && (
           <>
             <DialogHeader>
-              <DialogTitle>Exporting Video</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Exporting Video
+              </DialogTitle>
               <DialogDescription>
-                Please wait while your presentation is rendered to video.
+                {progressMessage}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="py-8 space-y-6">
-              <div className="flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium">{progressMessage}</p>
-              </div>
+            <div className="py-4 space-y-3">
               <div className="w-full bg-muted rounded-full h-2">
                 <div
                   className="bg-primary h-2 rounded-full transition-all duration-300"
@@ -290,6 +288,29 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
               <p className="text-xs text-center text-muted-foreground">
                 {Math.round(Math.min(progressPercent, 100))}%
               </p>
+
+              <div className="relative mt-2">
+                <pre
+                  ref={(el) => { if (el) el.scrollTop = el.scrollHeight }}
+                  className="p-3 pr-10 bg-muted rounded-lg text-xs font-mono max-h-48 overflow-y-auto whitespace-pre-wrap text-muted-foreground"
+                >
+                  {ffmpegLog || 'Waiting for logs...'}
+                </pre>
+                {ffmpegLog && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-1.5 right-1.5 h-7 w-7"
+                    onClick={() => {
+                      navigator.clipboard.writeText(ffmpegLog)
+                      setLogCopied(true)
+                      setTimeout(() => setLogCopied(false), 2000)
+                    }}
+                  >
+                    {logCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </Button>
+                )}
+              </div>
             </div>
 
             <DialogFooter>
@@ -349,11 +370,25 @@ export function ExportVideoDialog({ open, onOpenChange, pages, projectId }: Prop
                 <p className="text-sm text-destructive">{error}</p>
               </div>
               {ffmpegLog && (
-                <details className="text-xs">
+                <details className="text-xs" open>
                   <summary className="text-muted-foreground cursor-pointer">FFmpeg log</summary>
-                  <pre className="mt-2 p-2 bg-muted rounded text-xs max-h-40 overflow-y-auto whitespace-pre-wrap">
-                    {ffmpegLog.slice(-2000)}
-                  </pre>
+                  <div className="relative mt-2">
+                    <pre className="p-2 pr-10 bg-muted rounded text-xs max-h-40 overflow-y-auto whitespace-pre-wrap">
+                      {ffmpegLog.slice(-2000)}
+                    </pre>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-1.5 right-1.5 h-7 w-7"
+                      onClick={() => {
+                        navigator.clipboard.writeText(ffmpegLog)
+                        setLogCopied(true)
+                        setTimeout(() => setLogCopied(false), 2000)
+                      }}
+                    >
+                      {logCopied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
                 </details>
               )}
             </div>

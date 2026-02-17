@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload, ChevronDown, Database, FileText, Settings, MoreVertical, Sparkles } from "lucide-react"
+import { Plus, Trash2, RotateCcw, Play, FileEdit, Type, Search, Clock, Presentation, Filter, Download, Upload, Database, FileText, Settings, MoreVertical, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -231,129 +231,6 @@ export function Dashboard() {
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Failed to export presentation:', error)
-    }
-  }
-
-  const handleExportAllData = async () => {
-    try {
-      const allData = {
-        projects: [],
-        settings: {
-          titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
-          descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
-          imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
-          codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
-          titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
-          descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
-          subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
-          subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8'
-        },
-        exportedAt: new Date().toISOString()
-      }
-
-      for (const project of projects) {
-        const pages = await DatabaseService.getProjectPages(project.id!)
-        allData.projects.push({
-          name: project.name,
-          createdAt: project.createdAt,
-          updatedAt: project.updatedAt,
-          slides: pages.map(page => ({
-            title: page.title || '',
-            description: page.description || '',
-            subtitle: page.subtitle || '',
-            code: page.code || '',
-            codeLanguage: page.codeLanguage || 'javascript',
-            image: page.image || ''
-          }))
-        })
-      }
-
-      const dataStr = JSON.stringify(allData, null, 2)
-      const blob = new Blob([dataStr], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `codepresent_full_backup_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Failed to export all data:', error)
-    }
-  }
-
-  const handleExportAllSlides = async () => {
-    try {
-      const allSlides = []
-
-      for (const project of projects) {
-        const pages = await DatabaseService.getProjectPages(project.id!)
-        allSlides.push({
-          name: project.name,
-          slides: pages.map(page => ({
-            title: page.title || '',
-            description: page.description || '',
-            subtitle: page.subtitle || '',
-            code: page.code || '',
-            codeLanguage: page.codeLanguage || 'javascript',
-            image: page.image || ''
-          }))
-        })
-      }
-
-      const exportData = {
-        presentations: allSlides,
-        exportedAt: new Date().toISOString()
-      }
-
-      const dataStr = JSON.stringify(exportData, null, 2)
-      const blob = new Blob([dataStr], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `codepresent_slides_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Failed to export slides:', error)
-    }
-  }
-
-  const handleExportSettings = () => {
-    try {
-      const settings = {
-        titleTopSpacing: localStorage.getItem('presentation-settings-titleTopSpacing') || '8',
-        descriptionTitleSpacing: localStorage.getItem('presentation-settings-descriptionTitleSpacing') || '6',
-        imageDescriptionSpacing: localStorage.getItem('presentation-settings-imageDescriptionSpacing') || '6',
-        codeImageSpacing: localStorage.getItem('presentation-settings-codeImageSpacing') || '6',
-        titleFontSize: localStorage.getItem('presentation-settings-titleFontSize') || '5',
-        descriptionFontSize: localStorage.getItem('presentation-settings-descriptionFontSize') || '5',
-        subtitleFontSize: localStorage.getItem('presentation-settings-subtitleFontSize') || '4',
-        subtitleSpacing: localStorage.getItem('presentation-settings-subtitleSpacing') || '8',
-        exportedAt: new Date().toISOString()
-      }
-
-      const dataStr = JSON.stringify(settings, null, 2)
-      const blob = new Blob([dataStr], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `codepresent_settings_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Failed to export settings:', error)
     }
   }
 

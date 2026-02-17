@@ -379,19 +379,25 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
   const width = resolution === '1080p' ? 1920 : 1280
   const height = resolution === '1080p' ? 1080 : 720
 
+  onLog?.('[export] Loading video encoder (FFmpeg WASM)...')
   onProgress?.('Loading video encoder...', 0)
 
   const ffmpeg = await getFFmpeg(onLog)
 
+  onLog?.('[export] FFmpeg loaded successfully')
+
   if (signal?.aborted) throw new Error('Aborted')
 
   // Render each slide to PNG via html2canvas
+  onLog?.(`[export] Rendering ${pages.length} slides to PNG (${width}x${height})...`)
   onProgress?.('Rendering slides...', 10)
 
   for (let i = 0; i < pages.length; i++) {
     if (signal?.aborted) throw new Error('Aborted')
 
+    onLog?.(`[render] Slide ${i + 1}/${pages.length}: capturing...`)
     const imgData = await renderSlideToImage(pages[i], width, height)
+    onLog?.(`[render] Slide ${i + 1}/${pages.length}: ${(imgData.byteLength / 1024).toFixed(0)}KB PNG written`)
     await ffmpeg.writeFile(`slide_${i}.png`, imgData)
 
     const progress = 10 + (60 * (i + 1)) / pages.length
@@ -404,17 +410,18 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
   const hasAudio = slideAudios && slideAudios.some((a) => a !== null)
 
   if (hasAudio && slideAudios) {
+    const audioCount = slideAudios.filter((a) => a !== null).length
+    onLog?.(`[audio] Processing ${audioCount} audio clips, normalizing to 24kHz mono WAV...`)
     onProgress?.('Processing audio...', 70)
 
-    // Normalize all audio to consistent format: 24kHz mono WAV
-    // This prevents artifacts when concatenating with silence gaps
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
       if (audio) {
+        onLog?.(`[audio] Slide ${i + 1}: ${audio.duration.toFixed(1)}s, ${(audio.audioBlob.size / 1024).toFixed(0)}KB`)
         const audioData = await fetchFileFn(new Blob([audio.audioBlob]))
         await ffmpeg.writeFile(`audio_raw_${i}.wav`, audioData)
 
-        // Re-encode to consistent 24kHz mono PCM WAV
+        onLog?.(`[audio] Slide ${i + 1}: re-encoding to 24kHz mono PCM...`)
         await ffmpeg.exec([
           '-i', `audio_raw_${i}.wav`,
           '-ar', '24000', '-ac', '1', '-c:a', 'pcm_s16le',
@@ -422,6 +429,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
         ])
 
         try { await ffmpeg.deleteFile(`audio_raw_${i}.wav`) } catch {}
+        onLog?.(`[audio] Slide ${i + 1}: done`)
       }
     }
   }
@@ -429,6 +437,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
   if (signal?.aborted) throw new Error('Aborted')
 
   // Build FFmpeg concat file
+  onLog?.('[encode] Building video concat list...')
   onProgress?.('Encoding video...', 75)
 
   let concatContent = ''
@@ -437,13 +446,14 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     const duration = audioDur + slideDelay
     concatContent += `file 'slide_${i}.png'\n`
     concatContent += `duration ${duration}\n`
+    onLog?.(`[encode] Slide ${i + 1}: duration=${duration.toFixed(1)}s (audio=${audioDur.toFixed(1)}s + delay=${slideDelay}s)`)
   }
   concatContent += `file 'slide_${pages.length - 1}.png'\n`
 
   await ffmpeg.writeFile('concat.txt', concatContent)
 
   if (hasAudio && slideAudios) {
-    // Video only first
+    onLog?.('[encode] Encoding video track (H.264)...')
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
       '-vf', `scale=${width}:${height}`,
@@ -451,8 +461,10 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       '-r', '30',
       '-y', 'video_only.mp4',
     ])
+    onLog?.('[encode] Video track complete')
 
     // Build audio track: real audio + silence gaps (all 24kHz mono WAV)
+    onLog?.('[encode] Building audio concat list...')
     let audioConcat = ''
     for (let i = 0; i < slideAudios.length; i++) {
       const audio = slideAudios[i]
@@ -460,6 +472,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       if (audio) {
         audioConcat += `file 'audio_${i}.wav'\n`
         if (slideDelay > 0) {
+          onLog?.(`[encode] Generating ${slideDelay}s silence gap for slide ${i + 1}...`)
           await ffmpeg.exec([
             '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',
             '-t', `${slideDelay}`,
@@ -470,6 +483,7 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
         }
       } else {
         const duration = DEFAULT_SLIDE_DURATION + slideDelay
+        onLog?.(`[encode] Generating ${duration}s silence for slide ${i + 1} (no audio)...`)
         await ffmpeg.exec([
           '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono',
           '-t', `${duration}`,
@@ -482,13 +496,15 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
 
     await ffmpeg.writeFile('audio_concat.txt', audioConcat)
 
-    // Concatenate all audio segments (all same format now) then encode to AAC
+    onLog?.('[encode] Concatenating all audio segments → AAC...')
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'audio_concat.txt',
       '-c:a', 'aac', '-b:a', '128k',
       '-y', 'audio_full.aac',
     ])
+    onLog?.('[encode] Audio track complete')
 
+    onLog?.('[encode] Muxing video + audio → output.mp4...')
     await ffmpeg.exec([
       '-i', 'video_only.mp4',
       '-i', 'audio_full.aac',
@@ -496,7 +512,9 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       '-shortest',
       '-y', 'output.mp4',
     ])
+    onLog?.('[encode] Muxing complete')
   } else {
+    onLog?.('[encode] Encoding video (no audio)...')
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
       '-vf', `scale=${width}:${height}`,
@@ -504,12 +522,15 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
       '-r', '30',
       '-y', 'output.mp4',
     ])
+    onLog?.('[encode] Video encoding complete')
   }
 
+  onLog?.('[export] Reading output file...')
   onProgress?.('Finalizing...', 95)
 
   const data = await ffmpeg.readFile('output.mp4')
   const mp4Blob = new Blob([data], { type: 'video/mp4' })
+  onLog?.(`[export] Done! Output size: ${(mp4Blob.size / (1024 * 1024)).toFixed(1)}MB`)
 
   // Cleanup
   for (let i = 0; i < pages.length; i++) {
