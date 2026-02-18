@@ -1,5 +1,13 @@
 import { getAISettings } from './aiSettings'
 
+const IMAGE_GEN_SYSTEM_PROMPT = `You are a dramatic, over-the-top illustrator. Generate vivid, colorful images with these rules:
+- ALWAYS include playful cartoon characters (animals, robots, monsters, etc.) with exaggerated expressions and body language
+- Make every scene as DRAMATIC as possible — explosive reactions, spotlights, confetti, fire, sparkles, giant props
+- Characters should be acting out the concept through their actions and emotions, NOT through text
+- ABSOLUTELY ZERO text, letters, numbers, words, labels, signs, speech bubbles, error codes, or any written content anywhere in the image. Not even a single character of text. Pure visual storytelling only.
+- Style: vibrant colors, clean illustration, fun and energetic mood
+- Think Pixar-meets-meme energy`
+
 export interface ImageGenResult {
   model: string
   imageData: string | null
@@ -35,6 +43,7 @@ export async function generateImageWithModel(
     body: JSON.stringify({
       model,
       messages: [
+        { role: 'system', content: IMAGE_GEN_SYSTEM_PROMPT },
         { role: 'user', content: prompt },
       ],
     }),

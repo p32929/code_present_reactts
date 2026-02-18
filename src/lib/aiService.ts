@@ -58,7 +58,7 @@ RULES:
 - DESCRIPTION: ONE sentence, under 15 words. Snappy.
 - SUBTITLE: 2-4 sentences. This is the NARRATION SCRIPT — what a voiceover would say. Conversational, funny, relatable. Use rhetorical questions, hot takes, and real-world analogies. Encourage people to try it.
 - CODE: ONLY simple terminal commands (install, clone, run). NEVER actual source code. If no command needed, leave empty.
-- IMAGE: Describe what visual should appear (screenshot, diagram, meme-style comparison, before/after). MOST slides should have an image. If slide has CODE, leave IMAGE empty.
+- IMAGE: Describe a fun, dramatic scene with playful cartoon characters acting out the concept visually. ABSOLUTELY NO TEXT of any kind in the description — no quoted strings, no error codes, no numbers used as labels, no variable names, no status codes, no brand names, no words shown on signs/screens/popups. Instead, represent everything through characters, emotions, objects, and actions. Bad example: 'robot surrounded by "429" error pop-ups' — Good example: 'exhausted robot buried under a mountain of crumpled rejection letters while red warning lights flash everywhere'. Think expressive characters with big emotions. Be specific about characters, expressions, actions, colors, and the scene. Make it dramatic and over-the-top. MOST slides should have an image. If slide has CODE, leave IMAGE empty.
 - 8-15 slides total.
 - Slide 1 = hook. Grab attention IMMEDIATELY. Ask a relatable question or drop a bold claim. Include an image description.
 - Slide 2-3 = "what is this thing" and "why should I care" — keep it fun.
@@ -86,7 +86,7 @@ Okay real talk — how many browser tabs do you have open right now? Exactly. Wh
 -CODE_LANGUAGE-
 
 -IMAGE-
-Split screen: left side shows 47 open browser tabs, right side shows a clean terminal with weather data in one line
+A stressed cartoon octopus with sweat drops frantically juggling dozens of browser tab icons with both arms, next to a chill smiling sloth lounging in a hammock holding a single tiny screen showing a sun icon
 =SLIDE=
 -TITLE-
 One Minute Setup, Seriously
@@ -127,7 +127,7 @@ And it doesn't just dump raw JSON at you like some kind of monster. Look at this
 -CODE_LANGUAGE-
 
 -IMAGE-
-Terminal output showing beautifully formatted weather data with colorful temperature display, weather icons, humidity and wind speed for London
+A proud little robot standing on stage under a spotlight, dramatically presenting a giant glowing sun and cloud sculpture to an audience of amazed cartoon animals with their jaws dropped and eyes sparkling
 =SLIDE=
 -TITLE-
 Now Go Try It

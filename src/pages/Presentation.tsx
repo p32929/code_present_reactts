@@ -478,7 +478,8 @@ export function Presentation() {
       setTempCode(currentPage.code || "")
       setTempCodeLanguage(currentPage.codeLanguage || "javascript")
     } else if (type === 'image') {
-      setTempImage(currentPage.image || "")
+      // If generated images exist, edit the prompt text, not the URL
+      setTempImage(generatedImages.length > 0 && imageGenPrompt ? imageGenPrompt : (currentPage.image || ""))
       setIsCopied(false) // Reset copy state when opening image dialog
     }
 
@@ -503,6 +504,8 @@ export function Presentation() {
         updates.codeLanguage = tempCodeLanguage
       } else if (contentType === 'image') {
         updates.image = tempImage
+        // Also update the prompt tracker so regeneration uses the new text
+        setImageGenPrompt(tempImage)
       }
 
       await DatabaseService.updatePage(currentPage.id!, updates)
@@ -1136,6 +1139,18 @@ export function Presentation() {
                     </Button>
                   </div>
 
+                  {/* Show editable prompt when a generated image is selected */}
+                  {imageGenPrompt && (currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image')) && generatedImages.length > 0 && (
+                    <div
+                      className="max-w-full p-6 bg-muted/50 rounded-lg border border-border cursor-pointer hover:bg-muted/70 transition-colors"
+                      onClick={() => handleEditContent('image')}
+                    >
+                      <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground break-words">
+                        {imageGenPrompt}
+                      </pre>
+                    </div>
+                  )}
+
                   {/* Generate Images button */}
                   {(generatedImages.length > 0 || loadingModels.size > 0 || !(currentPage.image.startsWith('http') || currentPage.image.startsWith('data:image') || currentPage.image.startsWith('/') || currentPage.image.startsWith('./'))) && (
                     <div className="flex flex-col items-center gap-1">
@@ -1456,9 +1471,9 @@ export function Presentation() {
                   <div className="space-y-3">
                     <div className="border rounded-lg p-4 bg-muted/20">
                       {tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./') ? (
-                        <img 
-                          src={tempImage} 
-                          alt="Preview" 
+                        <img
+                          src={tempImage}
+                          alt="Preview"
                           className="max-w-full max-h-40 object-contain mx-auto rounded"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -1468,15 +1483,15 @@ export function Presentation() {
                             }
                           }}
                         />
-                      ) : null}
-                      <div 
-                        className={`${tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./') ? 'hidden' : 'block'} text-center`}
-                        style={{ display: tempImage.startsWith('http') || tempImage.startsWith('data:image') || tempImage.startsWith('/') || tempImage.startsWith('./') ? 'none' : 'block' }}
-                      >
-                        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground break-words max-h-40 overflow-y-auto">
-                          {tempImage}
-                        </pre>
-                      </div>
+                      ) : (
+                        <Textarea
+                          value={tempImage}
+                          onChange={(e) => setTempImage(e.target.value)}
+                          rows={4}
+                          className="font-mono text-sm"
+                          autoFocus
+                        />
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
