@@ -453,11 +453,12 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
   await ffmpeg.writeFile('concat.txt', concatContent)
 
   if (hasAudio && slideAudios) {
-    onLog?.('[encode] Encoding video track (H.264)...')
+    onLog?.('[encode] Encoding video track (H.264 ultrafast)...')
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
       '-vf', `scale=${width}:${height}`,
-      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'stillimage',
+      '-pix_fmt', 'yuv420p',
       '-r', '30',
       '-y', 'video_only.mp4',
     ])
@@ -514,11 +515,12 @@ export async function exportToMP4(options: ExportOptions): Promise<Blob> {
     ])
     onLog?.('[encode] Muxing complete')
   } else {
-    onLog?.('[encode] Encoding video (no audio)...')
+    onLog?.('[encode] Encoding video (no audio, ultrafast)...')
     await ffmpeg.exec([
       '-f', 'concat', '-safe', '0', '-i', 'concat.txt',
       '-vf', `scale=${width}:${height}`,
-      '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'stillimage',
+      '-pix_fmt', 'yuv420p',
       '-r', '30',
       '-y', 'output.mp4',
     ])
