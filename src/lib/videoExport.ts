@@ -193,10 +193,11 @@ async function renderSlideToImage(
   // ── Code ──
   if (page.code) {
     const codeWrapper = doc.createElement('div')
-    codeWrapper.style.cssText = `border-radius:12px;overflow:hidden;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);margin-top:${spacingPx(s.codeImageSpacing)}px;flex:1;min-height:0;display:flex;flex-direction:column;`
+    codeWrapper.style.cssText = `border-radius:12px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);margin-top:${spacingPx(s.codeImageSpacing)}px;flex:1;min-height:0;background:rgba(15,23,42,0.98);`
 
     const pre = doc.createElement('pre')
-    pre.style.cssText = `margin:0;padding:24px;font-family:ui-monospace,"Cascadia Code","Fira Code","Droid Sans Mono",monospace;font-size:${Math.max(14, Math.min(18, width / 110))}px;line-height:1.5;background:rgba(15,23,42,0.98);color:#d4d4d4;overflow:hidden;flex:1;white-space:pre;tab-size:2;`
+    const codeFontSize = Math.max(14, Math.min(18, width / 110))
+    pre.style.cssText = `margin:0;padding:24px;font-family:ui-monospace,"Cascadia Code","Fira Code","Droid Sans Mono",monospace;font-size:${codeFontSize}px;line-height:1.5;color:#d4d4d4;white-space:pre;tab-size:2;`
 
     const lines = page.code.split('\n')
     const numberedCode = doc.createElement('div')
@@ -204,16 +205,15 @@ async function renderSlideToImage(
 
     const lineNums = doc.createElement('div')
     lineNums.style.cssText = `text-align:right;padding-right:16px;border-right:1px solid rgba(255,255,255,0.1);margin-right:16px;color:rgba(255,255,255,0.3);user-select:none;flex-shrink:0;`
-    lineNums.innerHTML = lines.map((_, i) => `<div>${i + 1}</div>`).join('')
+    lineNums.innerHTML = lines.map((_, i) => `<div style="height:${codeFontSize * 1.5}px">${i + 1}</div>`).join('')
 
     const codeBody = doc.createElement('div')
-    codeBody.style.cssText = `flex:1;overflow:hidden;`
+    codeBody.style.cssText = `flex:1;`
     codeBody.innerHTML = highlightCode(page.code, page.codeLanguage || 'javascript')
 
-    pre.appendChild(numberedCode)
     numberedCode.appendChild(lineNums)
     numberedCode.appendChild(codeBody)
-
+    pre.appendChild(numberedCode)
     codeWrapper.appendChild(pre)
     content.appendChild(codeWrapper)
   }
