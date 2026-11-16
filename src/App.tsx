@@ -7,7 +7,7 @@ import { Play } from "./pages/Play"
 function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="presentations-ui-theme">
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/presentation/:id" element={<Presentation />} />

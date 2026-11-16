@@ -31,8 +31,8 @@ async function getFFmpeg(
     ffmpeg.on('log', ({ message }: { message: string }) => onLog(message))
   }
 
-  const coreURL = await createBlobURL('/ffmpeg-core.js', 'text/javascript')
-  const wasmURL = await createBlobURL('/ffmpeg-core.wasm', 'application/wasm')
+  const coreURL = await createBlobURL(`${import.meta.env.BASE_URL}ffmpeg-core.js`, 'text/javascript')
+  const wasmURL = await createBlobURL(`${import.meta.env.BASE_URL}ffmpeg-core.wasm`, 'application/wasm')
   await ffmpeg.load({ coreURL, wasmURL })
 
   ffmpegInstance = ffmpeg
