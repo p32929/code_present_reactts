@@ -6,6 +6,8 @@ Putting code on slides usually means pasting screenshots and fighting with forma
 
 **Everything runs in your browser.** Your presentations, your API keys and the video encoding all stay on your own computer. You bring your own keys for any OpenAI-compatible model, and Gemini for the voice.
 
+<p align="center"><b><a href="https://p32929.github.io/code_present_reactts/">Try it in your browser →</a></b><br>No sign-up, nothing to install.</p>
+
 <p align="center"><img src="docs/demo.gif" alt="Opening a presentation and stepping through its slides" width="100%"></p>
 
 <p align="center"><b><a href="docs/example.mp4">Watch an example video</a></b>: this 30-second MP4 was exported by CodePresent itself, from the slides in the demo above.</p>
@@ -48,7 +50,7 @@ Putting code on slides usually means pasting screenshots and fighting with forma
 
 ## Run it
 
-You need [Node.js](https://nodejs.org/).
+The easiest way is the live version: [p32929.github.io/code_present_reactts](https://p32929.github.io/code_present_reactts/). To run it on your own computer, you need [Node.js](https://nodejs.org/).
 
 ```bash
 git clone https://github.com/p32929/code_present_reactts.git
